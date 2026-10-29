@@ -18,6 +18,28 @@ class JobManager:
         self._cleanup_task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
 
+    def _save_job_to_disk(self, job: Job) -> None:
+        try:
+            job_dir = get_job_dir(job.id)
+            meta_path = job_dir / "job.json"
+            meta_path.write_text(job.model_dump_json(), encoding="utf-8")
+        except Exception as e:
+            logger.warning("Could not persist job %s to disk: %s", job.id, e)
+
+    def _load_job_from_disk(self, job_id: str) -> Optional[Job]:
+        try:
+            job_dir = get_job_dir(job_id)
+            meta_path = job_dir / "job.json"
+            if meta_path.exists():
+                import json
+                data = json.loads(meta_path.read_text(encoding="utf-8"))
+                job = Job(**data)
+                self._jobs[job_id] = job
+                return job
+        except Exception as e:
+            logger.warning("Could not load job %s from disk: %s", job_id, e)
+        return None
+
     def create_job(self, tool_id: str, options: dict) -> Job:
         job_id = generate_job_id()
         download_token = generate_download_token()
@@ -39,11 +61,15 @@ class JobManager:
         # Ensure job storage directory exists
         get_job_dir(job_id)
         self._jobs[job_id] = job
+        self._save_job_to_disk(job)
         logger.info("Created job %s for tool %s", job_id, tool_id)
         return job
 
     def get_job(self, job_id: str) -> Optional[Job]:
-        return self._jobs.get(job_id)
+        job = self._jobs.get(job_id)
+        if not job:
+            job = self._load_job_from_disk(job_id)
+        return job
 
     def update_job(
         self,
@@ -78,6 +104,7 @@ class JobManager:
         if metadata is not None:
             job.metadata.update(metadata)
 
+        self._save_job_to_disk(job)
         return job
 
     def cancel_job(self, job_id: str) -> bool:

@@ -349,10 +349,17 @@ def replace_text_in_pdf(
     font_size: Optional[float] = None
 ) -> Dict[str, Any]:
     """Search for existing text in PDF and replace it in-place."""
-    if not find_text:
+    if not find_text or not find_text.strip():
         raise ValueError("Search text cannot be empty")
 
+    find_text = find_text.strip()
     doc = pymupdf.open(str(file_path))
+    if doc.is_encrypted:
+        try:
+            doc.authenticate("")
+        except Exception:
+            pass
+
     total_pages = len(doc)
     replacement_count = 0
     rgb = hex_to_rgb(color_hex)
@@ -364,30 +371,46 @@ def replace_text_in_pdf(
         targets = set(range(total_pages))
 
     for idx in targets:
+        if idx < 0 or idx >= total_pages:
+            continue
         page = doc[idx]
         quads = page.search_for(find_text)
         if not quads:
             continue
-        for rect in quads:
-            fsize = font_size if font_size else max(8.0, rect.height * 0.85)
-            page.add_redact_annot(rect, fill=(1, 1, 1))
-            page.apply_redactions()
-            page.insert_text(
-                pymupdf.Point(rect.x0, rect.y1 - (rect.height * 0.15)),
-                replace_text,
-                fontsize=fsize,
-                color=rgb,
-                overlay=True
-            )
-            replacement_count += 1
 
-    doc.save(str(output_path), garbage=3, deflate=True)
+        # Redact matches on this page
+        for rect in quads:
+            page.add_redact_annot(rect, fill=(1, 1, 1))
+        page.apply_redactions()
+
+        # Insert replacement text
+        if replace_text:
+            for rect in quads:
+                fsize = font_size if font_size else max(8.0, rect.height * 0.85)
+                page.insert_text(
+                    pymupdf.Point(rect.x0, rect.y1 - (rect.height * 0.15)),
+                    replace_text,
+                    fontsize=fsize,
+                    color=rgb,
+                    overlay=True
+                )
+        replacement_count += len(quads)
+
+    try:
+        doc.save(str(output_path), garbage=3, deflate=True)
+    except Exception:
+        doc.save(str(output_path), deflate=True)
     doc.close()
+
+    if replacement_count > 0:
+        msg = f"Successfully replaced {replacement_count} instance(s) of '{find_text}'."
+    else:
+        msg = f"Text '{find_text}' was not found in the selected pages. If this is a scanned document, run OCR PDF first."
 
     return {
         "success": True,
         "replacements_count": replacement_count,
         "find_text": find_text,
         "replace_text": replace_text,
-        "message": f"Successfully replaced {replacement_count} instance(s) of '{find_text}'."
+        "message": msg
     }

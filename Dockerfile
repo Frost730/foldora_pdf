@@ -61,9 +61,5 @@ COPY --from=frontend-builder /build/dist ./frontend/dist
 # Expose Render PORT
 EXPOSE 10000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-10000}/healthz || exit 1
-
 # Start Uvicorn bound to 0.0.0.0 using dynamic Render PORT variable
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1"]

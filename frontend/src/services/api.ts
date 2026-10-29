@@ -46,7 +46,15 @@ export async function createJob(
 
 export async function fetchJob(jobId: string): Promise<Job> {
   const res = await fetch(`${API_BASE}/jobs/${jobId}`);
-  if (!res.ok) throw new Error('Job not found or has expired');
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('Job not found or has expired');
+    }
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error('Service is temporarily warming up (502). Retrying...');
+    }
+    throw new Error(`Server returned error ${res.status}`);
+  }
   return res.json();
 }
 
@@ -88,13 +96,24 @@ export async function pollJob(
   maxAttempts: number = 180
 ): Promise<Job> {
   let attempts = 0;
+  let consecutiveTransientErrors = 0;
+
   while (attempts < maxAttempts) {
     attempts++;
-    const job = await fetchJob(jobId);
-    onUpdate(job);
+    try {
+      const job = await fetchJob(jobId);
+      consecutiveTransientErrors = 0;
+      onUpdate(job);
 
-    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled' || job.status === 'expired') {
-      return job;
+      if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled' || job.status === 'expired') {
+        return job;
+      }
+    } catch (err: any) {
+      consecutiveTransientErrors++;
+      // If error is 404 or max retries exceeded, propagate error
+      if (err.message?.includes('not found') || consecutiveTransientErrors >= 5) {
+        throw err;
+      }
     }
 
     await new Promise((r) => setTimeout(r, intervalMs));
