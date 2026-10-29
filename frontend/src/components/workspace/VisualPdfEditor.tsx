@@ -364,7 +364,7 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
   return (
     <div className="flex flex-col bg-[#12151c] rounded-2xl overflow-hidden border border-[#2b303c] shadow-2xl text-white">
       {/* ========================================================================= */}
-      {/* 1. TOP EDITING TOOLBAR (Detto iLovePDF)                                   */}
+      {/* 1. TOP EDITING TOOLBAR                                   */}
       {/* ========================================================================= */}
       <div className="bg-[#181d27] border-b border-[#2b303c] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
         {/* Left tool selection buttons */}

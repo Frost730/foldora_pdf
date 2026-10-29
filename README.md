@@ -2,7 +2,7 @@
 
 > “Every document. One smoother workflow.”
 
-Foldora PDF is an independent, production-oriented, full-stack online PDF utility suite inspired by the utility of tools like iLovePDF, but featuring an original brand identity, bespoke UI/UX architecture, privacy-first ephemeral processing, and zero permanent document storage.
+Foldora PDF is an independent, production-oriented, full-stack online PDF utility suite featuring an original brand identity, bespoke UI/UX architecture, privacy-first ephemeral processing, and zero permanent document storage.
 
 Deployable on **Render** as a single Docker-based web service.
 

@@ -273,7 +273,7 @@ export const ToolWorkspacePage: React.FC = () => {
                         : 'text-[#64748b] hover:text-[#12151c]'
                     }`}
                   >
-                    🎨 Visual Canvas Editor (iLovePDF Style)
+                    Visual Canvas Editor
                   </button>
                   <button
                     type="button"
@@ -284,7 +284,7 @@ export const ToolWorkspacePage: React.FC = () => {
                         : 'text-[#64748b] hover:text-[#12151c]'
                     }`}
                   >
-                    ⚙️ Quick Options Form
+                    Quick Options Form
                   </button>
                 </div>
 

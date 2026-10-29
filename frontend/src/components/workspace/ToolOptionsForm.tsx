@@ -308,7 +308,7 @@ export const ToolOptionsForm: React.FC<ToolOptionsFormProps> = ({
   }
 
   // 3. Edit Text in PDF (Find & Replace in-place)
-  if (toolId === 'edit-text') {
+  if (toolId === 'edit-text' || toolId === 'edit-pdf') {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
