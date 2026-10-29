@@ -380,6 +380,17 @@ ALL_TOOLS: List[ToolDefinition] = [
     ),
 
     # E. Edit and annotate PDF
+        ToolDefinition(
+        id="edit-text",
+        name="Edit Text in PDF",
+        tagline="Find, replace, and modify text directly in your PDF.",
+        description="Search for existing words, names, or numbers in your PDF and replace them with new text in-place while preserving layout positioning.",
+        category=ToolCategory.EDIT,
+        icon="Edit3",
+        accepts=[".pdf"],
+        max_files=1,
+        popular=True,
+    ),
     ToolDefinition(
         id="add-text",
         name="Add Text to PDF",

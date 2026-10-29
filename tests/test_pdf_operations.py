@@ -254,3 +254,28 @@ def test_ai_extractive_summary_and_structured_data():
 
     pdf.unlink(missing_ok=True)
     out_json.unlink(missing_ok=True)
+
+
+def test_replace_text_in_pdf():
+    pdf = create_sample_pdf(2, "Original Text To Replace")
+    out = Path(tempfile.NamedTemporaryFile(suffix=".pdf", delete=False).name)
+
+    res = editor.replace_text_in_pdf(pdf, out, find_text="Original Text To Replace", replace_text="Foldora Replaced Text")
+    assert res["success"] is True
+    assert res["replacements_count"] > 0
+
+    doc = pymupdf.open(str(out))
+    found_new = False
+    found_old = False
+    for page in doc:
+        if page.search_for("Foldora Replaced Text"):
+            found_new = True
+        if page.search_for("Original Text To Replace"):
+            found_old = True
+    doc.close()
+
+    assert found_new is True
+    assert found_old is False
+
+    pdf.unlink(missing_ok=True)
+    out.unlink(missing_ok=True)

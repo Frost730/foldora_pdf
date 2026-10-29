@@ -337,3 +337,57 @@ def fill_form_fields(
     doc.save(str(output_path), deflate=True)
     doc.close()
     return output_path
+
+
+def replace_text_in_pdf(
+    file_path: Path,
+    output_path: Path,
+    find_text: str,
+    replace_text: str,
+    page_indices_str: Optional[str] = None,
+    color_hex: str = "#111827",
+    font_size: Optional[float] = None
+) -> Dict[str, Any]:
+    """Search for existing text in PDF and replace it in-place."""
+    if not find_text:
+        raise ValueError("Search text cannot be empty")
+
+    doc = pymupdf.open(str(file_path))
+    total_pages = len(doc)
+    replacement_count = 0
+    rgb = hex_to_rgb(color_hex)
+
+    from app.services.pdf.organize import parse_page_ranges
+    if page_indices_str and page_indices_str.strip():
+        targets = set(parse_page_ranges(page_indices_str, total_pages))
+    else:
+        targets = set(range(total_pages))
+
+    for idx in targets:
+        page = doc[idx]
+        quads = page.search_for(find_text)
+        if not quads:
+            continue
+        for rect in quads:
+            fsize = font_size if font_size else max(8.0, rect.height * 0.85)
+            page.add_redact_annot(rect, fill=(1, 1, 1))
+            page.apply_redactions()
+            page.insert_text(
+                pymupdf.Point(rect.x0, rect.y1 - (rect.height * 0.15)),
+                replace_text,
+                fontsize=fsize,
+                color=rgb,
+                overlay=True
+            )
+            replacement_count += 1
+
+    doc.save(str(output_path), garbage=3, deflate=True)
+    doc.close()
+
+    return {
+        "success": True,
+        "replacements_count": replacement_count,
+        "find_text": find_text,
+        "replace_text": replace_text,
+        "message": f"Successfully replaced {replacement_count} instance(s) of '{find_text}'."
+    }

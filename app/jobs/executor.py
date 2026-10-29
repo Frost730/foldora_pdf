@@ -245,6 +245,16 @@ async def execute_job(job_id: str) -> None:
         # -------------------------------------------------------------
         # Category E: Edit and annotate PDF
         # -------------------------------------------------------------
+        elif tool_id == "edit-text":
+            out_p = job_dir / "edited_document.pdf"
+            find_txt = opts.get("find_text", "")
+            repl_txt = opts.get("replace_text", "")
+            pages = opts.get("pages", "")
+            color = opts.get("color", "#111827")
+            res_meta = editor.replace_text_in_pdf(input_paths[0], out_p, find_text=find_txt, replace_text=repl_txt, page_indices_str=pages, color_hex=color)
+            meta_update.update(res_meta)
+            output_files.append(_make_output_file(job_id, job.download_token, out_p, "edited_document.pdf", "application/pdf"))
+
         elif tool_id == "add-text":
             out_p = job_dir / "text_added.pdf"
             txt = opts.get("text", "Sample Text")

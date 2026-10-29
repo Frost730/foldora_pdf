@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ToolDefinition, Job } from '../types';
-import { fetchTool, createJob, pollJob, cancelJob, deleteJob } from '../services/api';
+import { fetchTool, createJob, pollJob, cancelJob, deleteJob, fetchPreview } from '../services/api';
 import { ToolIcon } from '../components/common/ToolIcon';
 import { FileDropzone } from '../components/workspace/FileDropzone';
 import { FileList } from '../components/workspace/FileList';
@@ -22,6 +22,7 @@ export const ToolWorkspacePage: React.FC = () => {
 
   // Workspace state
   const [files, setFiles] = useState<File[]>([]);
+  const [pageCount, setPageCount] = useState<number | undefined>(undefined);
   const [options, setOptions] = useState<Record<string, any>>({});
   const [job, setJob] = useState<Job | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -50,6 +51,8 @@ export const ToolWorkspacePage: React.FC = () => {
         else if (toolId === 'images-to-pdf') setOptions({ orientation: 'auto' });
         else if (toolId === 'pdf-to-jpg' || toolId === 'pdf-to-png') setOptions({ dpi: 150 });
         else if (toolId === 'add-stamp') setOptions({ stamp_text: 'APPROVED' });
+        else if (toolId === 'remove-pages') setOptions({ pages_to_remove: '' });
+        else if (toolId === 'edit-text') setOptions({ find_text: '', replace_text: '', color: '#111827' });
         else setOptions({});
         setLoadingTool(false);
       })
@@ -58,6 +61,22 @@ export const ToolWorkspacePage: React.FC = () => {
         setLoadingTool(false);
       });
   }, [toolId]);
+
+  useEffect(() => {
+    if (files.length > 0 && files[0].name.toLowerCase().endsWith('.pdf')) {
+      fetchPreview(files[0], 0, 100)
+        .then((res) => {
+          if (res?.total_pages) {
+            setPageCount(res.total_pages);
+          }
+        })
+        .catch(() => {
+          setPageCount(undefined);
+        });
+    } else {
+      setPageCount(undefined);
+    }
+  }, [files]);
 
   const handleFilesSelected = (newFiles: File[]) => {
     if (!tool) return;
@@ -123,6 +142,7 @@ export const ToolWorkspacePage: React.FC = () => {
 
   const handleReset = () => {
     setFiles([]);
+    setPageCount(undefined);
     setJob(null);
     setIsProcessing(false);
     setActionError(null);
@@ -234,7 +254,7 @@ export const ToolWorkspacePage: React.FC = () => {
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#94a3b8]">
                 Tool Options & Preferences
               </h3>
-              <ToolOptionsForm toolId={tool.id} options={options} onChange={setOptions} />
+              <ToolOptionsForm toolId={tool.id} options={options} onChange={setOptions} pageCount={pageCount} />
             </div>
           )}
 
