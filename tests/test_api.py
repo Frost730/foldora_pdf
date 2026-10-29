@@ -179,3 +179,11 @@ def test_auto_wipe_and_privacy_maintenance():
     assert not job2_dir.exists(), "Background cleanup must wipe expired job folders"
 
     pdf.unlink(missing_ok=True)
+
+def test_compression_and_security_headers():
+    res = client.get("/api/tools", headers={"Accept-Encoding": "gzip"})
+    assert res.status_code == 200
+    assert res.headers.get("x-content-type-options") == "nosniff"
+    assert res.headers.get("x-frame-options") == "DENY"
+    assert res.headers.get("referrer-policy") == "strict-origin-when-cross-origin"
+    assert "public" in res.headers.get("cache-control", "")

@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 from app.core.config import settings
 from app.jobs.manager import job_manager
@@ -41,6 +42,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Compression Middleware: compress responses >= 500 bytes (JSON, HTML, SVG, JS, CSS)
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -49,6 +53,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Security and Cache Headers Middleware
+@app.middleware("http")
+async def add_security_and_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    # Security headers (Defense-in-Depth)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+
+    # Caching strategy: immutable long-term caching for hashed assets, fresh for HTML
+    path = request.url.path
+    if path.startswith("/assets/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif path == "/" or path.endswith(".html") or (not path.startswith("/api/") and not path == "/healthz"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+
+    return response
 
 
 # Root Health Check for Render
