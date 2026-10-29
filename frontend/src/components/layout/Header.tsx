@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BrandLogo } from './BrandLogo';
-import { Search, Menu, X, Shield, Sparkles, Layers, ArrowRight } from 'lucide-react';
+import { Search, Menu, X, Sparkles, ArrowRight } from 'lucide-react';
 
 interface HeaderProps {
   onOpenSearch?: () => void;
@@ -12,7 +12,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
   const navigate = useNavigate();
 
   return (
-    <header className="sticky top-0 z-40 bg-[#f9f9f6]/90 backdrop-blur-md border-b border-[#e3e3dc] transition-all">
+    <header className="sticky top-0 z-40 bg-[#f9f9f6]/95 backdrop-blur-md border-b border-[#e3e3dc] transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Brand */}
         <BrandLogo />
@@ -50,6 +50,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
             Security
           </Link>
           <Link
+            to="/tools?category=ai_advanced"
+            className="px-3 py-1.5 rounded-lg text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors flex items-center gap-1 font-semibold"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>AI Tools</span>
+          </Link>
+          <Link
             to="/about"
             className="px-3 py-1.5 rounded-lg hover:text-[#12151c] hover:bg-[#f1f1ec] transition-colors"
           >
@@ -62,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
           {/* Quick Search Button */}
           <button
             onClick={() => onOpenSearch ? onOpenSearch() : navigate('/tools')}
-            className="flex items-center gap-2 text-xs text-[#64748b] bg-[#ffffff] border border-[#e3e3dc] hover:border-[#94a3b8] px-3 py-1.5 rounded-full shadow-sm hover:shadow transition-all group cursor-pointer"
+            className="flex items-center gap-2 text-xs text-[#64748b] bg-[#ffffff] border border-[#e3e3dc] hover:border-[#94a3b8] px-3 py-1.5 rounded-full shadow-xs hover:shadow transition-all group cursor-pointer"
           >
             <Search className="w-3.5 h-3.5 text-[#64748b] group-hover:text-[#12151c]" />
             <span className="hidden sm:inline">Search 60+ tools...</span>
@@ -75,7 +82,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
           {/* Quick CTA to Popular Tool */}
           <Link
             to="/tool/merge-pdf"
-            className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-[#12151c] text-[#c9f227] hover:bg-[#1e2433] transition-colors shadow-sm"
+            className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-[#12151c] text-[#c9f227] hover:bg-[#1e2433] transition-colors shadow-xs"
           >
             <span>Merge PDF</span>
             <ArrowRight className="w-3 h-3" />
@@ -84,7 +91,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg text-[#475569] hover:bg-[#f1f1ec] transition-colors"
+            className="md:hidden p-2 rounded-lg text-[#475569] hover:bg-[#f1f1ec] transition-colors cursor-pointer"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -136,6 +143,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
             className="block px-3 py-2 rounded-lg text-base font-medium text-[#475569] hover:bg-[#f1f1ec]"
           >
             Security & Redaction
+          </Link>
+          <Link
+            to="/tools?category=ai_advanced"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-base font-medium text-blue-600 hover:bg-blue-50"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>AI Tools & Insights</span>
           </Link>
           <Link
             to="/about"
