@@ -40,10 +40,12 @@ export const PageOrganizer: React.FC<PageOrganizerProps> = ({ file, onChange }) 
       setPages(initialPages);
       emitChange(initialPages);
 
-      // Fetch remaining thumbnails in background
-      for (let i = 1; i < total; i++) {
+      // Fetch thumbnails throttled with a cap to preserve memory
+      const maxToLoad = Math.min(total, 12);
+      for (let i = 1; i < maxToLoad; i++) {
+        await new Promise((r) => setTimeout(r, 200));
         try {
-          const p = await fetchPreview(file, i, 300);
+          const p = await fetchPreview(file, i, 200);
           setPages((prev) =>
             prev.map((item) =>
               item.sourceIndex === i ? { ...item, thumbnailUrl: p.image_base64 } : item

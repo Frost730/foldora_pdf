@@ -20,10 +20,10 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # Operational limits
-    MAX_UPLOAD_MB: int = 50
+    MAX_UPLOAD_MB: int = 35
     MAX_FILES_PER_JOB: int = 20
-    MAX_PAGES_PER_JOB: int = 200
-    MAX_CONCURRENT_JOBS: int = 5
+    MAX_PAGES_PER_JOB: int = 100
+    MAX_CONCURRENT_JOBS: int = 2
     JOB_TTL_MINUTES: int = 15
     MAX_PROCESSING_SECONDS: int = 180
     CLEANUP_INTERVAL_SECONDS: int = 60

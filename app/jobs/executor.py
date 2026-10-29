@@ -1,3 +1,4 @@
+from app.utils.memory import free_memory
 import asyncio
 import json
 import logging
@@ -519,6 +520,7 @@ async def execute_job(job_id: str) -> None:
         )
     finally:
         job_manager.release_slot()
+        free_memory()
 
 
 def _make_output_file(job_id: str, download_token: str, file_path: Path, filename: str, mime: str) -> OutputFile:

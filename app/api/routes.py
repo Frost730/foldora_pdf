@@ -1,3 +1,4 @@
+from app.utils.memory import free_memory
 import asyncio
 import base64
 import io
@@ -275,11 +276,10 @@ async def generate_preview(
         mat = pymupdf.Matrix(scale, scale)
 
         pix = page.get_pixmap(matrix=mat, alpha=False)
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=80)
-        img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        w_px, h_px = pix.width, pix.height
+        jpeg_bytes = pix.tobytes("jpeg", jpg_quality=65)
+        img_b64 = base64.b64encode(jpeg_bytes).decode("utf-8")
+        pix = None
 
         text_snippet = page.get_text("text")[:300].strip()
 
@@ -305,13 +305,15 @@ async def generate_preview(
             spans_data = []
 
         doc.close()
+        del content
+        free_memory()
 
         return PreviewResponse(
             total_pages=total_pages,
             current_page=idx + 1,
             image_base64=f"data:image/jpeg;base64,{img_b64}",
-            width=pix.width,
-            height=pix.height,
+            width=w_px,
+            height=h_px,
             text_content=text_snippet,
             page_width_pt=round(float(rect.width), 2),
             page_height_pt=round(float(rect.height), 2),
@@ -322,3 +324,22 @@ async def generate_preview(
     except Exception as exc:
         logger.warning("Preview generation failed: %s", exc)
         raise HTTPException(status_code=400, detail=f"Could not render preview: {str(exc)}")
+
+
+@router.post("/pdf-info")
+async def get_pdf_info(file: UploadFile = File(...)):
+    """Fast, zero-render document metadata inspector."""
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    content = await file.read()
+    try:
+        doc = pymupdf.open(stream=content, filetype="pdf")
+        total = len(doc)
+        is_enc = doc.is_encrypted
+        doc.close()
+        del content
+        free_memory()
+        return {"total_pages": total, "is_encrypted": is_enc}
+    except Exception as exc:
+        free_memory()
+        raise HTTPException(status_code=400, detail=f"Could not read PDF: {str(exc)}")

@@ -111,3 +111,18 @@ def test_spa_static_serving():
     assert res.status_code == 200
     assert "Foldora PDF" in res.text
     assert "root" in res.text
+
+
+def test_pdf_info_endpoint():
+    pdf = create_sample_pdf(3, "Metadata Info Test")
+    with open(pdf, "rb") as f:
+        res = client.post(
+            "/api/pdf-info",
+            files={"file": ("info_test.pdf", f.read(), "application/pdf")}
+        )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_pages"] == 3
+    assert data["is_encrypted"] is False
+
+    pdf.unlink(missing_ok=True)

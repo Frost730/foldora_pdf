@@ -128,3 +128,14 @@ export function formatBytes(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
+
+export async function fetchPdfInfo(file: File): Promise<{ total_pages: number; is_encrypted: boolean }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/pdf-info`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error('Could not inspect PDF metadata');
+  return res.json();
+}

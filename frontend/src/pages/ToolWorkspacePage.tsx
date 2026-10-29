@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ToolDefinition, Job } from '../types';
-import { fetchTool, createJob, pollJob, cancelJob, deleteJob, fetchPreview } from '../services/api';
+import { fetchTool, createJob, pollJob, cancelJob, deleteJob, fetchPreview, fetchPdfInfo } from '../services/api';
 import { ToolIcon } from '../components/common/ToolIcon';
 import { FileDropzone } from '../components/workspace/FileDropzone';
 import { FileList } from '../components/workspace/FileList';
@@ -86,7 +86,7 @@ export const ToolWorkspacePage: React.FC = () => {
 
   useEffect(() => {
     if (files.length > 0 && files[0].name.toLowerCase().endsWith('.pdf')) {
-      fetchPreview(files[0], 0, 100)
+      fetchPdfInfo(files[0])
         .then((res) => {
           if (res?.total_pages) {
             setPageCount(res.total_pages);
