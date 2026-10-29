@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, AlertCircle, Trash2, FileOutput, Edit3, Type, Crop, Highlighter, Underline, Globe, Table } from 'lucide-react';
+import { Sparkles, AlertCircle, Trash2, FileOutput, Edit3, Type, Crop, Highlighter, Underline, Globe, Table, PenTool, Shield, CheckSquare, Layers, FileCheck, Search, Image as ImageIcon, Wrench, FileSpreadsheet, FileCode, CheckCircle2, Stamp, Calendar, Check, Info } from 'lucide-react';
 
 interface ToolOptionsFormProps {
   toolId: string;
@@ -1109,6 +1109,617 @@ export const ToolOptionsForm: React.FC<ToolOptionsFormProps> = ({
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    );
+  }
+
+
+  // 23. Sign PDF, Create Signature, Fill and Sign
+  if (['sign-pdf', 'create-signature', 'fill-and-sign'].includes(toolId)) {
+    const signer = options.signer_name || '';
+    const style = options.signature_style || 'cursive';
+    const position = options.position || 'bottom_right';
+    const targetPage = options.page || 1;
+    const inkColor = options.color || '#1e3a8a';
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <label className="block text-xs font-bold text-[#12151c] mb-1.5 flex items-center gap-1.5">
+            <PenTool className="w-3.5 h-3.5 text-[#2563eb]" />
+            <span>Signer Full Name</span>
+          </label>
+          <input
+            type="text"
+            value={signer}
+            onChange={(e) => updateOption('signer_name', e.target.value)}
+            placeholder="e.g. Aravind P."
+            className="w-full px-3.5 py-2 text-xs bg-white border border-[#e3e3dc] rounded-xl focus:outline-none focus:border-[#12151c]"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-[#12151c] mb-1.5">Signature Typography Style</label>
+            <div className="space-y-1.5">
+              {[
+                { id: 'cursive', title: 'Cursive Signature', desc: 'Handwritten italic signature' },
+                { id: 'formal', title: 'Formal Script', desc: 'Elegant traditional legal script' },
+                { id: 'modern', title: 'Modern Serif', desc: 'Clean corporate executive style' },
+              ].map((st) => (
+                <div
+                  key={st.id}
+                  onClick={() => updateOption('signature_style', st.id)}
+                  className={`p-2.5 rounded-xl border cursor-pointer text-xs transition-all ${
+                    style === st.id
+                      ? 'border-[#12151c] bg-[#12151c] text-white shadow-xs'
+                      : 'border-[#e3e3dc] bg-white text-[#12151c] hover:bg-[#f8fafc]'
+                  }`}
+                >
+                  <div className="font-bold">{st.title}</div>
+                  <div className={`text-[10px] ${style === st.id ? 'text-[#94a3b8]' : 'text-[#64748b]'}`}>{st.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-[#12151c] mb-1.5">Placement Position</label>
+              <select
+                value={position}
+                onChange={(e) => {
+                  const pos = e.target.value;
+                  updateOption('position', pos);
+                  if (pos === 'bottom_right') {
+                    updateOption('x', 380);
+                    updateOption('y', 680);
+                  } else if (pos === 'bottom_left') {
+                    updateOption('x', 72);
+                    updateOption('y', 680);
+                  } else if (pos === 'top_right') {
+                    updateOption('x', 380);
+                    updateOption('y', 72);
+                  }
+                }}
+                className="w-full px-3 py-2 text-xs bg-white border border-[#e3e3dc] rounded-xl focus:outline-none"
+              >
+                <option value="bottom_right">Bottom Right Corner (Standard)</option>
+                <option value="bottom_left">Bottom Left Corner</option>
+                <option value="top_right">Top Right Header</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#12151c] mb-1.5">Target Page</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={pageCount || 100}
+                  value={targetPage}
+                  onChange={(e) => updateOption('page', Math.max(1, Number(e.target.value)))}
+                  className="w-20 px-3 py-1.5 text-xs bg-white border border-[#e3e3dc] rounded-xl"
+                />
+                {pageCount && (
+                  <button
+                    type="button"
+                    onClick={() => updateOption('page', pageCount)}
+                    className="px-2.5 py-1 text-xs border border-[#e3e3dc] bg-white rounded-lg text-[#64748b] hover:bg-[#f1f1ec]"
+                  >
+                    Last Page ({pageCount})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#12151c] mb-1.5">Ink Color</label>
+              <div className="flex items-center gap-2">
+                {[
+                  { c: '#1e3a8a', label: 'Navy Blue' },
+                  { c: '#111827', label: 'Dark Black' },
+                  { c: '#831843', label: 'Burgundy' },
+                ].map((col) => (
+                  <button
+                    key={col.c}
+                    type="button"
+                    onClick={() => updateOption('color', col.c)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-all ${
+                      inkColor === col.c ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white text-[#475569]'
+                    }`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: col.c }} />
+                    <span>{col.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 pt-2 border-t border-[#e3e3dc]">
+          <input
+            type="checkbox"
+            id="include_date"
+            checked={options.include_date !== false}
+            onChange={(e) => updateOption('include_date', e.target.checked)}
+            className="rounded border-[#e3e3dc] cursor-pointer"
+          />
+          <label htmlFor="include_date" className="text-xs text-[#475569] cursor-pointer">
+            Include automated signing date timestamp (<span className="font-mono">{new Date().toISOString().split('T')[0]}</span>)
+          </label>
+        </div>
+      </div>
+    );
+  }
+
+  // 24. Merge PDF
+  if (toolId === 'merge-pdf') {
+    return (
+      <div className="space-y-3">
+        <label className="block text-xs font-bold text-[#12151c]">Merge Order & Options</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div
+            onClick={() => updateOption('order', 'sequence')}
+            className={`p-3 rounded-xl border cursor-pointer ${
+              options.order !== 'alpha' ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+            }`}
+          >
+            <div className="text-xs font-bold">List Order (As Uploaded)</div>
+            <div className="text-[11px] opacity-75">Merges files in the exact order shown above. Drag files to reorder.</div>
+          </div>
+          <div
+            onClick={() => updateOption('order', 'alpha')}
+            className={`p-3 rounded-xl border cursor-pointer ${
+              options.order === 'alpha' ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+            }`}
+          >
+            <div className="text-xs font-bold">Alphabetical by Name</div>
+            <div className="text-[11px] opacity-75">Automatically sorts uploaded documents by filename (A to Z).</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 25. Repair PDF
+  if (toolId === 'repair-pdf') {
+    const level = options.repair_mode || 'standard';
+    return (
+      <div className="space-y-3">
+        <label className="block text-xs font-bold text-[#12151c] flex items-center gap-1.5">
+          <Wrench className="w-3.5 h-3.5 text-[#f59e0b]" />
+          <span>Repair Recovery Strategy</span>
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {[
+            { id: 'standard', title: 'Standard Fix', desc: 'Rebuilds broken xref cross-reference tables & trailer' },
+            { id: 'deep', title: 'Deep Recovery', desc: 'Salvages readable object streams and purges invalid blocks' },
+            { id: 'linearize', title: 'Linearize & Clean', desc: 'Optimizes document layout for fast web streaming' },
+          ].map((item) => (
+            <div
+              key={item.id}
+              onClick={() => updateOption('repair_mode', item.id)}
+              className={`p-3 rounded-xl border cursor-pointer text-xs ${
+                level === item.id ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white text-[#12151c] hover:bg-[#f8fafc]'
+              }`}
+            >
+              <div className="font-bold mb-0.5">{item.title}</div>
+              <div className={`text-[10px] ${level === item.id ? 'text-[#94a3b8]' : 'text-[#64748b]'}`}>{item.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // 26. Flatten PDF / Flatten Form
+  if (['flatten-pdf', 'flatten-form'].includes(toolId)) {
+    return (
+      <div className="space-y-3">
+        <div className="p-3 bg-[#fef2f2] border border-[#fecaca] rounded-xl text-xs text-[#991b1b] flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            Flattening converts fillable form inputs, digital stamps, and annotations into permanent visual page graphics.
+          </span>
+        </div>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-xs text-[#12151c] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={options.flatten_forms !== false}
+              onChange={(e) => updateOption('flatten_forms', e.target.checked)}
+              className="rounded"
+            />
+            <span>Bake all text fields, checkboxes, and radio buttons</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-[#12151c] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={options.flatten_annotations !== false}
+              onChange={(e) => updateOption('flatten_annotations', e.target.checked)}
+              className="rounded"
+            />
+            <span>Bake all markup highlights, notes, and digital stamps</span>
+          </label>
+        </div>
+      </div>
+    );
+  }
+
+  // 27. PDF to PDF/A (Archival Standard)
+  if (toolId === 'pdf-to-pdfa') {
+    const profile = options.profile || 'pdfa-2b';
+    return (
+      <div className="space-y-3">
+        <label className="block text-xs font-bold text-[#12151c]">ISO PDF/A Archival Profile</label>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {[
+            { id: 'pdfa-2b', title: 'PDF/A-2b (Recommended)', desc: 'Standard archival profile supporting vector transparency and JPEG2000' },
+            { id: 'pdfa-1b', title: 'PDF/A-1b (Basic)', desc: 'Strict visual conformance according to initial ISO 19005-1 standard' },
+            { id: 'pdfa-3b', title: 'PDF/A-3b (Modern)', desc: 'Advanced archival profile allowing embedded XML and raw audit files' },
+          ].map((item) => (
+            <div
+              key={item.id}
+              onClick={() => updateOption('profile', item.id)}
+              className={`p-3 rounded-xl border cursor-pointer text-xs ${
+                profile === item.id ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white text-[#12151c] hover:bg-[#f8fafc]'
+              }`}
+            >
+              <div className="font-bold mb-0.5">{item.title}</div>
+              <div className={`text-[10px] ${profile === item.id ? 'text-[#94a3b8]' : 'text-[#64748b]'}`}>{item.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // 28. Images to PDF (JPG, PNG, WebP, TIFF, Multiple Images, Scan)
+  if (['jpg-to-pdf', 'png-to-pdf', 'webp-to-pdf', 'tiff-to-pdf', 'images-to-pdf', 'scan-to-pdf'].includes(toolId)) {
+    const orient = options.orientation || 'auto';
+    const margin = options.margin !== undefined ? String(options.margin) : '18';
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-[#12151c] mb-1.5">Page Orientation</label>
+            <select
+              value={orient}
+              onChange={(e) => updateOption('orientation', e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-white border border-[#e3e3dc] rounded-xl"
+            >
+              <option value="auto">Auto (Match Image Proportions)</option>
+              <option value="portrait">Force Portrait</option>
+              <option value="landscape">Force Landscape</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#12151c] mb-1.5">Page Margins</label>
+            <select
+              value={margin}
+              onChange={(e) => updateOption('margin', Number(e.target.value))}
+              className="w-full px-3 py-2 text-xs bg-white border border-[#e3e3dc] rounded-xl"
+            >
+              <option value="0">No Margins (Edge-to-Edge)</option>
+              <option value="18">Small Margins (18 pt)</option>
+              <option value="36">Standard Margins (36 pt)</option>
+            </select>
+          </div>
+        </div>
+
+        {toolId === 'scan-to-pdf' && (
+          <div className="flex items-center gap-2 pt-2 border-t border-[#e3e3dc]">
+            <input
+              type="checkbox"
+              id="enhance"
+              checked={options.enhance_contrast !== false}
+              onChange={(e) => updateOption('enhance_contrast', e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="enhance" className="text-xs text-[#475569] cursor-pointer">
+              Auto-enhance contrast and sharpen scanned paper text
+            </label>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 29. Office to PDF (Word, Excel, PowerPoint)
+  if (['word-to-pdf', 'powerpoint-to-pdf', 'excel-to-pdf'].includes(toolId)) {
+    return (
+      <div className="space-y-3">
+        <label className="block text-xs font-bold text-[#12151c]">Conversion Settings</label>
+        <div className="grid grid-cols-2 gap-3">
+          <div
+            onClick={() => updateOption('quality', 'high')}
+            className={`p-3 rounded-xl border cursor-pointer text-xs ${
+              options.quality !== 'compact' ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+            }`}
+          >
+            <div className="font-bold">High Fidelity Vector (Default)</div>
+            <div className="text-[10px] opacity-75">Preserves exact fonts, charts, vector shapes, and document hyperlinks.</div>
+          </div>
+          <div
+            onClick={() => updateOption('quality', 'compact')}
+            className={`p-3 rounded-xl border cursor-pointer text-xs ${
+              options.quality === 'compact' ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+            }`}
+          >
+            <div className="font-bold">Optimized File Size</div>
+            <div className="text-[10px] opacity-75">Compresses embedded media for email and fast downloading.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 30. PDF to Office (Word DOCX, Excel XLSX, PowerPoint PPTX)
+  if (['pdf-to-word', 'pdf-to-excel', 'pdf-to-powerpoint'].includes(toolId)) {
+    return (
+      <div className="space-y-3">
+        <label className="block text-xs font-bold text-[#12151c]">Document Conversion Mode</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div
+            onClick={() => updateOption('layout_mode', 'flow')}
+            className={`p-3 rounded-xl border cursor-pointer text-xs ${
+              options.layout_mode !== 'exact' ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+            }`}
+          >
+            <div className="font-bold mb-0.5">Editable Flowing Content</div>
+            <div className="text-[10px] opacity-75">Reconstructs paragraphs, tables, and lists for natural document editing.</div>
+          </div>
+          <div
+            onClick={() => updateOption('layout_mode', 'exact')}
+            className={`p-3 rounded-xl border cursor-pointer text-xs ${
+              options.layout_mode === 'exact' ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+            }`}
+          >
+            <div className="font-bold mb-0.5">Strict Visual Geometry</div>
+            <div className="text-[10px] opacity-75">Positions content in exact geometric text frames matching page coordinates.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 31. Text & Code Conversions (txt-to-pdf, markdown-to-pdf, html-to-pdf, pdf-to-txt, pdf-to-html, pdf-to-markdown)
+  if (['txt-to-pdf', 'markdown-to-pdf', 'html-to-pdf', 'pdf-to-txt', 'pdf-to-html', 'pdf-to-markdown'].includes(toolId)) {
+    return (
+      <div className="space-y-3">
+        <label className="block text-xs font-bold text-[#12151c]">Typography & Formatting</label>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] text-[#64748b] mb-1">Font Family</label>
+            <select
+              value={options.font || 'sans'}
+              onChange={(e) => updateOption('font', e.target.value)}
+              className="w-full px-3 py-1.5 text-xs bg-white border border-[#e3e3dc] rounded-xl"
+            >
+              <option value="sans">Clean Sans-Serif (Helvetica)</option>
+              <option value="mono">Monospace (Courier / Code)</option>
+              <option value="serif">Editorial Serif (Times)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] text-[#64748b] mb-1">Font Size</label>
+            <select
+              value={options.font_size || 11}
+              onChange={(e) => updateOption('font_size', Number(e.target.value))}
+              className="w-full px-3 py-1.5 text-xs bg-white border border-[#e3e3dc] rounded-xl"
+            >
+              <option value={10}>Compact (10 pt)</option>
+              <option value={11}>Standard (11 pt)</option>
+              <option value={13}>Comfortable (13 pt)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 32. Extract Text & Extract Images
+  if (['extract-text', 'extract-images'].includes(toolId)) {
+    if (toolId === 'extract-text') {
+      return (
+        <div className="space-y-3">
+          <label className="block text-xs font-bold text-[#12151c]">Text Extraction Settings</label>
+          <div className="grid grid-cols-2 gap-3">
+            <div
+              onClick={() => updateOption('format', 'txt')}
+              className={`p-3 rounded-xl border cursor-pointer text-xs ${
+                options.format !== 'md' ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+              }`}
+            >
+              <div className="font-bold">Plain Text (.txt)</div>
+              <div className="text-[10px] opacity-75">Clean unformatted text stream</div>
+            </div>
+            <div
+              onClick={() => updateOption('format', 'md')}
+              className={`p-3 rounded-xl border cursor-pointer text-xs ${
+                options.format === 'md' ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+              }`}
+            >
+              <div className="font-bold">Markdown (.md)</div>
+              <div className="text-[10px] opacity-75">Preserves headings, bold text, and layout spacing</div>
+            </div>
+          </div>
+        </div>
+      );
+    } else {
+      return (
+        <div className="space-y-3">
+          <label className="block text-xs font-bold text-[#12151c]">Image Extraction Filter</label>
+          <div className="grid grid-cols-2 gap-3">
+            <div
+              onClick={() => updateOption('filter_small', true)}
+              className={`p-3 rounded-xl border cursor-pointer text-xs ${
+                options.filter_small !== false ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+              }`}
+            >
+              <div className="font-bold">Photos & Graphics Only</div>
+              <div className="text-[10px] opacity-75">Filters out tiny decorative icons and 1px lines (recommended)</div>
+            </div>
+            <div
+              onClick={() => updateOption('filter_small', false)}
+              className={`p-3 rounded-xl border cursor-pointer text-xs ${
+                options.filter_small === false ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+              }`}
+            >
+              <div className="font-bold">All Embedded Assets</div>
+              <div className="text-[10px] opacity-75">Extracts every bitmap asset found in PDF byte streams</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // 33. Security Utilities (Remove Metadata, Compare PDFs, PDF Info, Check Integrity)
+  if (['remove-metadata', 'compare-pdfs', 'pdf-info', 'check-integrity'].includes(toolId)) {
+    if (toolId === 'remove-metadata') {
+      return (
+        <div className="space-y-3">
+          <label className="block text-xs font-bold text-[#12151c] flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5 text-[#059669]" />
+            <span>Privacy Scrubbing Scope</span>
+          </label>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {['Author & Signer identity', 'Software / PDF Producer metadata', 'Creation & Revision Timestamps', 'Document UUID & XMP metadata'].map((item) => (
+              <div key={item} className="flex items-center gap-2 p-2 bg-[#f8fafc] border border-[#e3e3dc] rounded-lg">
+                <Check className="w-3.5 h-3.5 text-[#059669]" />
+                <span className="text-[11px] text-[#475569]">{item}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-[#64748b]">
+            All hidden author fingerprints and tracking headers will be permanently scrubbed.
+          </p>
+        </div>
+      );
+    } else if (toolId === 'compare-pdfs') {
+      return (
+        <div className="space-y-3">
+          <label className="block text-xs font-bold text-[#12151c]">Comparison Inspection Method</label>
+          <div className="grid grid-cols-2 gap-3">
+            <div
+              onClick={() => updateOption('mode', 'diff')}
+              className={`p-3 rounded-xl border cursor-pointer text-xs ${
+                options.mode !== 'visual' ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+              }`}
+            >
+              <div className="font-bold">Text & Structural Word Diff</div>
+              <div className="text-[10px] opacity-75">Detailed change report noting additions, deletions, and moved clauses.</div>
+            </div>
+            <div
+              onClick={() => updateOption('mode', 'visual')}
+              className={`p-3 rounded-xl border cursor-pointer text-xs ${
+                options.mode === 'visual' ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white'
+              }`}
+            >
+              <div className="font-bold">Visual Pixel Overlay</div>
+              <div className="text-[10px] opacity-75">Highlights changes directly on page images in bright magenta.</div>
+            </div>
+          </div>
+        </div>
+      );
+    } else {
+      return (
+        <div className="space-y-3">
+          <label className="block text-xs font-bold text-[#12151c] flex items-center gap-1.5">
+            <Info className="w-3.5 h-3.5 text-[#2563eb]" />
+            <span>Inspection Diagnostic Mode</span>
+          </label>
+          <div className="p-3 bg-[#f8fafc] border border-[#e3e3dc] rounded-xl text-xs space-y-1">
+            <div className="font-bold text-[#12151c]">Comprehensive Document Audit</div>
+            <p className="text-[#64748b] text-[11px]">
+              Inspects cross-reference integrity, embedded font descriptors, color spaces, compression filters, and encryption structures.
+            </p>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // 34. AI Document Tools (PDF Summarizer, Extract Structured Data)
+  if (['pdf-summarizer', 'extract-structured-data'].includes(toolId)) {
+    if (toolId === 'pdf-summarizer') {
+      const summaryLength = options.length || 'brief';
+      return (
+        <div className="space-y-3">
+          <label className="block text-xs font-bold text-[#12151c]">Summary Format & Detail</label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {[
+              { id: 'brief', title: 'Executive Brief', desc: '1 concise high-level overview' },
+              { id: 'bullets', title: 'Key Bullet Points', desc: '5-8 core takeaways and findings' },
+              { id: 'detailed', title: 'Detailed Study Guide', desc: 'Section-by-section breakdown' },
+            ].map((item) => (
+              <div
+                key={item.id}
+                onClick={() => updateOption('length', item.id)}
+                className={`p-3 rounded-xl border cursor-pointer text-xs ${
+                  summaryLength === item.id ? 'border-[#12151c] bg-[#12151c] text-white' : 'border-[#e3e3dc] bg-white text-[#12151c] hover:bg-[#f8fafc]'
+                }`}
+              >
+                <div className="font-bold mb-0.5">{item.title}</div>
+                <div className={`text-[10px] ${summaryLength === item.id ? 'text-[#94a3b8]' : 'text-[#64748b]'}`}>{item.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    } else {
+      return (
+        <div className="space-y-3">
+          <label className="block text-xs font-bold text-[#12151c]">Entity Extraction Targets</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+            {['Person Names', 'Email Addresses', 'Phone Numbers', 'Financial Amounts', 'Key Dates', 'Addresses'].map((ent) => (
+              <div key={ent} className="flex items-center gap-2 p-2 bg-[#f8fafc] border border-[#e3e3dc] rounded-lg">
+                <Check className="w-3.5 h-3.5 text-[#2563eb]" />
+                <span className="text-[11px] text-[#12151c] font-medium">{ent}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-[#64748b]">
+            Extracts all structured key-value entities and returns a ready-to-use JSON export.
+          </p>
+        </div>
+      );
+    }
+  }
+
+  // 35. Edit Tools (add-image, draw-freehand, add-shapes, add-comments, annotate-pdf, fill-form)
+  if (['add-image', 'draw-freehand', 'add-shapes', 'add-comments', 'annotate-pdf', 'fill-form'].includes(toolId)) {
+    return (
+      <div className="space-y-3">
+        <label className="block text-xs font-bold text-[#12151c]">Editing Preferences</label>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] text-[#64748b] mb-1">Target Page</label>
+            <input
+              type="number"
+              min={1}
+              max={pageCount || 100}
+              value={options.page || 1}
+              onChange={(e) => updateOption('page', Math.max(1, Number(e.target.value)))}
+              className="w-full px-3 py-1.5 text-xs bg-white border border-[#e3e3dc] rounded-xl"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-[#64748b] mb-1">Theme Accent Color</label>
+            <div className="flex items-center gap-2 pt-0.5">
+              <input
+                type="color"
+                value={options.color || '#2563eb'}
+                onChange={(e) => updateOption('color', e.target.value)}
+                className="w-8 h-8 rounded-lg border border-[#e3e3dc] cursor-pointer"
+              />
+              <span className="text-xs font-mono text-[#64748b]">{options.color || '#2563eb'}</span>
+            </div>
+          </div>
         </div>
       </div>
     );

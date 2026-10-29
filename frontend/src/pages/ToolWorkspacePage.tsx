@@ -201,7 +201,7 @@ export const ToolWorkspacePage: React.FC = () => {
   }
 
   const isOrganizePageTool = tool.id === 'organize-pdf';
-  const isVisualEditorTool = ['edit-pdf', 'edit-text', 'add-text', 'draw-freehand', 'fill-and-sign'].includes(tool.id);
+  const isVisualEditorTool = ['edit-pdf', 'edit-text', 'add-text', 'draw-freehand', 'fill-and-sign', 'sign-pdf', 'create-signature', 'add-image', 'add-shapes', 'add-comments', 'annotate-pdf'].includes(tool.id);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8">
