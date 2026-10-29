@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
 import { SearchModal } from './components/common/SearchModal';
@@ -39,6 +39,7 @@ export function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/tools" element={<ToolsDirectoryPage />} />
+            <Route path="/tool/edit-text" element={<Navigate to="/tool/edit-pdf" replace />} />
             <Route path="/tool/:toolId" element={<ToolWorkspacePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />

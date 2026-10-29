@@ -392,17 +392,6 @@ ALL_TOOLS: List[ToolDefinition] = [
         popular=True,
     ),
     ToolDefinition(
-        id="edit-text",
-        name="Edit Text in PDF",
-        tagline="Find, replace, and modify text directly in your PDF.",
-        description="Search for existing words, names, or numbers in your PDF and replace them with new text in-place while preserving layout positioning.",
-        category=ToolCategory.EDIT,
-        icon="Edit3",
-        accepts=[".pdf"],
-        max_files=1,
-        popular=True,
-    ),
-    ToolDefinition(
         id="add-text",
         name="Add Text to PDF",
         tagline="Type and place custom text anywhere on your PDF pages.",
@@ -705,6 +694,8 @@ TOOLS_BY_ID: Dict[str, ToolDefinition] = {t.id: t for t in ALL_TOOLS}
 
 
 def get_tool(tool_id: str) -> Optional[ToolDefinition]:
+    if tool_id == "edit-text":
+        return TOOLS_BY_ID.get("edit-pdf")
     return TOOLS_BY_ID.get(tool_id)
 
 
