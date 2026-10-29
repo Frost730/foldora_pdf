@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { fetchPreview } from '../../services/api';
-import { PreviewResponse, TextSpan, VisualEditItem } from '../../types';
+import { PreviewResponse, TextSpan, VisualEditItem, VisualEditType } from '../../types';
+import { SignatureModal } from './SignatureModal';
 import {
   MousePointer,
   Edit3,
@@ -12,6 +13,7 @@ import {
   Eraser,
   Trash2,
   Undo2,
+  Redo2,
   ZoomIn,
   ZoomOut,
   ChevronLeft,
@@ -19,7 +21,13 @@ import {
   Loader2,
   Check,
   Download,
-  Maximize2
+  Highlighter,
+  ArrowRight,
+  Stamp,
+  Copy,
+  Bold,
+  Italic,
+  FileSignature
 } from 'lucide-react';
 
 interface VisualPdfEditorProps {
@@ -28,16 +36,39 @@ interface VisualPdfEditorProps {
   isProcessing?: boolean;
 }
 
-type ActiveTool = 'select' | 'edit-text' | 'add-text' | 'image' | 'draw' | 'whiteout' | 'shape-rect' | 'shape-circle';
+type ActiveTool =
+  | 'select'
+  | 'edit-text'
+  | 'add-text'
+  | 'image'
+  | 'draw'
+  | 'whiteout'
+  | 'highlight'
+  | 'line'
+  | 'arrow'
+  | 'shape-rect'
+  | 'shape-circle';
 
 const COLOR_PRESETS = [
-  '#111827', // Black
-  '#2563eb', // Blue
+  '#111827', // Pitch Black
+  '#0f172a', // Deep Navy
+  '#1d4ed8', // Classic Blue
+  '#2563eb', // Royal Blue
   '#dc2626', // Red
-  '#059669', // Green
-  '#d97706', // Amber
+  '#059669', // Emerald Green
+  '#d97706', // Amber / Gold
   '#7c3aed', // Purple
-  '#ffffff', // White
+  '#facc15', // Highlight Yellow
+  '#ffffff', // Pure White
+];
+
+const STAMP_PRESETS = [
+  { text: 'APPROVED', color: '#059669' },
+  { text: 'CONFIDENTIAL', color: '#dc2626' },
+  { text: 'DRAFT', color: '#d97706' },
+  { text: 'PAID', color: '#2563eb' },
+  { text: 'FINAL', color: '#111827' },
+  { text: 'VOID', color: '#dc2626' },
 ];
 
 export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
@@ -53,15 +84,23 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
   const [zoom, setZoom] = useState<number>(100);
 
   // Active Tool & Styling Options
-  const [activeTool, setActiveTool] = useState<ActiveTool>('edit-text');
+  const [activeTool, setActiveTool] = useState<ActiveTool>('select');
   const [activeColor, setActiveColor] = useState<string>('#111827');
   const [fontSize, setFontSize] = useState<number>(14);
   const [strokeWidth, setStrokeWidth] = useState<number>(2);
+  const [isBold, setIsBold] = useState<boolean>(false);
+  const [isItalic, setIsItalic] = useState<boolean>(false);
   const [hasBgColor, setHasBgColor] = useState<boolean>(false);
 
-  // Staged Edits across all pages
+  // Staged Edits & Undo/Redo Stacks
   const [edits, setEdits] = useState<VisualEditItem[]>([]);
+  const [undoStack, setUndoStack] = useState<VisualEditItem[][]>([]);
+  const [redoStack, setRedoStack] = useState<VisualEditItem[][]>([]);
   const [selectedEditId, setSelectedEditId] = useState<string | null>(null);
+
+  // Popups & Modals
+  const [showSignatureModal, setShowSignatureModal] = useState<boolean>(false);
+  const [showStampMenu, setShowStampMenu] = useState<boolean>(false);
 
   // Interactive In-Place Text Editing (clicked from existing text span)
   const [editingSpan, setEditingSpan] = useState<{
@@ -77,6 +116,66 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
   // Dragging state for movable elements
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Resizing state
+  const [resizingId, setResizingId] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState<{ x: number; y: number; w: number; h: number }>({ x: 0, y: 0, w: 0, h: 0 });
+
+  // Record edit state with history for Undo/Redo
+  const pushEdits = (newEdits: VisualEditItem[]) => {
+    setUndoStack((prev) => [...prev, edits]);
+    setRedoStack([]);
+    setEdits(newEdits);
+  };
+
+  const handleUndo = () => {
+    if (undoStack.length === 0) return;
+    const previous = undoStack[undoStack.length - 1];
+    setUndoStack((prev) => prev.slice(0, prev.length - 1));
+    setRedoStack((prev) => [...prev, edits]);
+    setEdits(previous);
+    setSelectedEditId(null);
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    setRedoStack((prev) => prev.slice(0, prev.length - 1));
+    setUndoStack((prev) => [...prev, edits]);
+    setEdits(next);
+    setSelectedEditId(null);
+  };
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          handleRedo();
+        } else {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedEditId) {
+          e.preventDefault();
+          deleteSelected();
+        }
+      } else if (e.key === 'Escape') {
+        setSelectedEditId(null);
+        setEditingSpan(null);
+        setShowStampMenu(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [edits, undoStack, redoStack, selectedEditId]);
 
   // Load preview whenever file or currentPage changes
   useEffect(() => {
@@ -109,10 +208,24 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
 
   // Filter edits for current active page
   const currentPageEdits = edits.filter((e) => e.page === currentPage);
+  const selectedItem = edits.find((e) => e.id === selectedEditId);
 
-  // 1. Handle clicking on existing PDF text span (In-Place Edit Text)
+  // Synchronize color selection with selected element
+  const handleColorChange = (newColor: string) => {
+    setActiveColor(newColor);
+    if (selectedEditId) {
+      pushEdits(
+        edits.map((item) =>
+          item.id === selectedEditId
+            ? { ...item, color: newColor, stroke_color: newColor }
+            : item
+        )
+      );
+    }
+  };
+
+  // 1. In-Place Text Editing (clicked from existing text span)
   const handleSpanClick = (span: TextSpan) => {
-    // If there is already an edit for this span's position, find it
     const existing = edits.find(
       (e) =>
         e.type === 'replace_text' &&
@@ -132,18 +245,15 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
     if (!editingSpan) return;
     const { span, replaceText } = editingSpan;
 
-    // Remove existing edit for this span if any
-    setEdits((prev) =>
-      prev.filter(
-        (e) =>
-          !(
-            e.type === 'replace_text' &&
-            e.page === currentPage &&
-            e.bbox &&
-            Math.abs(e.bbox[0] - span.bbox[0]) < 2 &&
-            Math.abs(e.bbox[1] - span.bbox[1]) < 2
-          )
-      )
+    const filtered = edits.filter(
+      (e) =>
+        !(
+          e.type === 'replace_text' &&
+          e.page === currentPage &&
+          e.bbox &&
+          Math.abs(e.bbox[0] - span.bbox[0]) < 2 &&
+          Math.abs(e.bbox[1] - span.bbox[1]) < 2
+        )
     );
 
     if (replaceText.trim() !== '') {
@@ -157,24 +267,24 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
         size: span.size,
         color: span.color || activeColor,
       };
-      setEdits((prev) => [...prev, newEdit]);
+      pushEdits([...filtered, newEdit]);
+    } else {
+      pushEdits(filtered);
     }
     setEditingSpan(null);
   };
 
-  // 2. Handle Canvas Click to add Text / Shapes / Whiteout
+  // 2. Handle Canvas Click to add Text / Shapes / Whiteout / Highlights / Lines
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (editingSpan) return;
-    if (activeTool === 'select' || activeTool === 'edit-text') return;
+    if (activeTool === 'select' || activeTool === 'edit-text' || activeTool === 'draw') return;
 
     const rect = canvasContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    // Position in image pixels
     const clickX = (e.clientX - rect.left) / (zoom / 100);
     const clickY = (e.clientY - rect.top) / (zoom / 100);
 
-    // Convert to PDF point coordinates
     const ptX = Math.round(clickX * scaleX);
     const ptY = Math.round(clickY * scaleY);
 
@@ -188,9 +298,11 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
         y: ptY,
         size: fontSize,
         color: activeColor,
+        is_bold: isBold,
+        is_italic: isItalic,
         bg_color: hasBgColor ? '#ffffff' : undefined,
       };
-      setEdits((prev) => [...prev, newText]);
+      pushEdits([...edits, newText]);
       setSelectedEditId(newText.id);
       setActiveTool('select');
     } else if (activeTool === 'whiteout') {
@@ -203,8 +315,55 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
         w: 120,
         h: 24,
       };
-      setEdits((prev) => [...prev, newWhiteout]);
+      pushEdits([...edits, newWhiteout]);
       setSelectedEditId(newWhiteout.id);
+      setActiveTool('select');
+    } else if (activeTool === 'highlight') {
+      const newHighlight: VisualEditItem = {
+        id: `hl_${Date.now()}`,
+        type: 'highlight',
+        page: currentPage,
+        x: ptX,
+        y: ptY,
+        w: 140,
+        h: 22,
+        color: activeColor === '#111827' ? '#facc15' : activeColor,
+      };
+      pushEdits([...edits, newHighlight]);
+      setSelectedEditId(newHighlight.id);
+      setActiveTool('select');
+    } else if (activeTool === 'line') {
+      const newLine: VisualEditItem = {
+        id: `line_${Date.now()}`,
+        type: 'line',
+        page: currentPage,
+        x: ptX,
+        y: ptY,
+        w: 140,
+        h: 0,
+        stroke_color: activeColor,
+        color: activeColor,
+        stroke_width: strokeWidth,
+      };
+      pushEdits([...edits, newLine]);
+      setSelectedEditId(newLine.id);
+      setActiveTool('select');
+    } else if (activeTool === 'arrow') {
+      const newArrow: VisualEditItem = {
+        id: `arrow_${Date.now()}`,
+        type: 'line',
+        is_arrow: true,
+        page: currentPage,
+        x: ptX,
+        y: ptY,
+        w: 140,
+        h: 0,
+        stroke_color: activeColor,
+        color: activeColor,
+        stroke_width: strokeWidth,
+      };
+      pushEdits([...edits, newArrow]);
+      setSelectedEditId(newArrow.id);
       setActiveTool('select');
     } else if (activeTool === 'shape-rect') {
       const newShape: VisualEditItem = {
@@ -217,10 +376,11 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
         w: 140,
         h: 80,
         stroke_color: activeColor,
+        color: activeColor,
         stroke_width: strokeWidth,
         fill_color: hasBgColor ? '#ffffff' : 'transparent',
       };
-      setEdits((prev) => [...prev, newShape]);
+      pushEdits([...edits, newShape]);
       setSelectedEditId(newShape.id);
       setActiveTool('select');
     } else if (activeTool === 'shape-circle') {
@@ -234,16 +394,17 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
         w: 100,
         h: 100,
         stroke_color: activeColor,
+        color: activeColor,
         stroke_width: strokeWidth,
         fill_color: hasBgColor ? '#ffffff' : 'transparent',
       };
-      setEdits((prev) => [...prev, newShape]);
+      pushEdits([...edits, newShape]);
       setSelectedEditId(newShape.id);
       setActiveTool('select');
     }
   };
 
-  // 3. Freehand Drawing Handlers
+  // 3. Freehand Drawing Handlers (Always preserve selected color!)
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (activeTool !== 'draw') return;
     const rect = canvasContainerRef.current?.getBoundingClientRect();
@@ -277,17 +438,18 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
         page: currentPage,
         points: currentStroke,
         stroke_color: activeColor,
+        color: activeColor, // Preserves the exact activeColor in backend and frontend!
         stroke_width: strokeWidth,
       };
-      setEdits((prev) => [...prev, newDrawing]);
+      pushEdits([...edits, newDrawing]);
     }
     setCurrentStroke([]);
   };
 
-  // 4. Image Upload Handler
+  // 4. Image Upload & Signature Adoption Handler
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const uploadedFile = e.target.files?.[0];
+    if (!uploadedFile) return;
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -302,15 +464,50 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
         w: 150,
         h: 100,
       };
-      setEdits((prev) => [...prev, newImg]);
+      pushEdits([...edits, newImg]);
       setSelectedEditId(newImg.id);
       setActiveTool('select');
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(uploadedFile);
     e.target.value = '';
   };
 
-  // 5. Element Dragging & Moving
+  const handleAdoptSignature = (sigDataUrl: string) => {
+    const newSig: VisualEditItem = {
+      id: `sig_${Date.now()}`,
+      type: 'image',
+      page: currentPage,
+      image_base64: sigDataUrl,
+      x: 120,
+      y: 180,
+      w: 170,
+      h: 65,
+    };
+    pushEdits([...edits, newSig]);
+    setSelectedEditId(newSig.id);
+    setActiveTool('select');
+  };
+
+  const handleAddStamp = (stampText: string, stampColor: string) => {
+    const newStamp: VisualEditItem = {
+      id: `stamp_${Date.now()}`,
+      type: 'stamp',
+      page: currentPage,
+      text: stampText,
+      color: stampColor,
+      stroke_color: stampColor,
+      x: 120,
+      y: 160,
+      w: 140,
+      h: 45,
+    };
+    pushEdits([...edits, newStamp]);
+    setSelectedEditId(newStamp.id);
+    setShowStampMenu(false);
+    setActiveTool('select');
+  };
+
+  // 5. Element Dragging & Resizing
   const startDrag = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedEditId(id);
@@ -326,45 +523,87 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
     }
   };
 
+  const startResize = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedEditId(id);
+    setResizingId(id);
+    const item = edits.find((i) => i.id === id);
+    if (item && item.w !== undefined && item.h !== undefined) {
+      setResizeStart({ x: e.clientX, y: e.clientY, w: item.w, h: item.h });
+    }
+  };
+
   const handleContainerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (activeTool === 'draw') {
       handleMouseMove(e);
       return;
     }
-    if (!draggingId) return;
 
     const rect = canvasContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const mouseX = ((e.clientX - rect.left) / (zoom / 100)) * scaleX;
-    const mouseY = ((e.clientY - rect.top) / (zoom / 100)) * scaleY;
+    if (draggingId) {
+      const mouseX = ((e.clientX - rect.left) / (zoom / 100)) * scaleX;
+      const mouseY = ((e.clientY - rect.top) / (zoom / 100)) * scaleY;
 
-    const newX = Math.max(0, Math.round(mouseX - dragOffset.x));
-    const newY = Math.max(0, Math.round(mouseY - dragOffset.y));
+      const newX = Math.max(0, Math.round(mouseX - dragOffset.x));
+      const newY = Math.max(0, Math.round(mouseY - dragOffset.y));
 
-    setEdits((prev) =>
-      prev.map((item) => (item.id === draggingId ? { ...item, x: newX, y: newY } : item))
-    );
+      setEdits((prev) =>
+        prev.map((item) => (item.id === draggingId ? { ...item, x: newX, y: newY } : item))
+      );
+    } else if (resizingId) {
+      const deltaX = ((e.clientX - resizeStart.x) / (zoom / 100)) * scaleX;
+      const deltaY = ((e.clientY - resizeStart.y) / (zoom / 100)) * scaleY;
+
+      const newW = Math.max(30, Math.round(resizeStart.w + deltaX));
+      const newH = Math.max(15, Math.round(resizeStart.h + deltaY));
+
+      setEdits((prev) =>
+        prev.map((item) => (item.id === resizingId ? { ...item, w: newW, h: newH } : item))
+      );
+    }
   };
 
   const handleContainerMouseUp = () => {
     if (activeTool === 'draw') {
       handleMouseUp();
     }
+    if (draggingId || resizingId) {
+      // Save state into undo stack
+      setUndoStack((prev) => [...prev, edits]);
+      setRedoStack([]);
+    }
     setDraggingId(null);
+    setResizingId(null);
   };
 
-  // 6. Delete Selected Edit
+  // 6. Delete & Duplicate Selected Edit
   const deleteSelected = () => {
     if (!selectedEditId) return;
-    setEdits((prev) => prev.filter((i) => i.id !== selectedEditId));
+    pushEdits(edits.filter((i) => i.id !== selectedEditId));
     setSelectedEditId(null);
+  };
+
+  const duplicateSelected = () => {
+    if (!selectedEditId) return;
+    const item = edits.find((i) => i.id === selectedEditId);
+    if (!item) return;
+
+    const clone: VisualEditItem = {
+      ...item,
+      id: `${item.type}_${Date.now()}`,
+      x: item.x !== undefined ? item.x + 20 : undefined,
+      y: item.y !== undefined ? item.y + 20 : undefined,
+    };
+    pushEdits([...edits, clone]);
+    setSelectedEditId(clone.id);
   };
 
   return (
     <div className="flex flex-col bg-[#12151c] rounded-2xl overflow-hidden border border-[#2b303c] shadow-2xl text-white">
       {/* ========================================================================= */}
-      {/* 1. TOP EDITING TOOLBAR                                   */}
+      {/* 1. TOP EDITING TOOLBAR                                                    */}
       {/* ========================================================================= */}
       <div className="bg-[#181d27] border-b border-[#2b303c] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
         {/* Left tool selection buttons */}
@@ -400,7 +639,7 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
           <button
             type="button"
             onClick={() => setActiveTool('add-text')}
-            title="Add new text box"
+            title="Add custom text box"
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTool === 'add-text'
                 ? 'bg-[#c9f227] text-[#12151c] shadow-xs'
@@ -408,26 +647,24 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
             }`}
           >
             <Type className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Add Text</span>
+            <span className="hidden sm:inline">Text</span>
           </button>
 
-          <label
-            title="Add image / stamp"
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTool === 'image'
-                ? 'bg-[#c9f227] text-[#12151c] shadow-xs'
-                : 'text-[#94a3b8] hover:text-white hover:bg-[#232936]'
-            }`}
+          {/* Dedicated Sign Button */}
+          <button
+            type="button"
+            onClick={() => setShowSignatureModal(true)}
+            title="Sign document (Draw, Type, or Upload Signature)"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-[#232936] text-[#c9f227] hover:bg-[#2d3446]"
           >
-            <ImageIcon className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Image</span>
-            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-          </label>
+            <FileSignature className="w-3.5 h-3.5" />
+            <span>Sign</span>
+          </button>
 
           <button
             type="button"
             onClick={() => setActiveTool('draw')}
-            title="Draw Freehand / Signature"
+            title="Freehand Pen"
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTool === 'draw'
                 ? 'bg-[#c9f227] text-[#12151c] shadow-xs'
@@ -440,8 +677,22 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
 
           <button
             type="button"
+            onClick={() => setActiveTool('highlight')}
+            title="Highlighter Marker"
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              activeTool === 'highlight'
+                ? 'bg-[#c9f227] text-[#12151c] shadow-xs'
+                : 'text-[#94a3b8] hover:text-white hover:bg-[#232936]'
+            }`}
+          >
+            <Highlighter className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Highlight</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTool('whiteout')}
-            title="Whiteout / Erase area"
+            title="Whiteout area"
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTool === 'whiteout'
                 ? 'bg-[#c9f227] text-[#12151c] shadow-xs'
@@ -452,14 +703,13 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
             <span className="hidden sm:inline">Whiteout</span>
           </button>
 
+          {/* Shapes & Lines */}
           <button
             type="button"
             onClick={() => setActiveTool('shape-rect')}
-            title="Add Rectangle"
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTool === 'shape-rect'
-                ? 'bg-[#c9f227] text-[#12151c]'
-                : 'text-[#94a3b8] hover:text-white hover:bg-[#232936]'
+            title="Rectangle"
+            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+              activeTool === 'shape-rect' ? 'bg-[#c9f227] text-[#12151c]' : 'text-[#94a3b8] hover:text-white'
             }`}
           >
             <Square className="w-3.5 h-3.5" />
@@ -468,26 +718,92 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
           <button
             type="button"
             onClick={() => setActiveTool('shape-circle')}
-            title="Add Circle"
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTool === 'shape-circle'
-                ? 'bg-[#c9f227] text-[#12151c]'
-                : 'text-[#94a3b8] hover:text-white hover:bg-[#232936]'
+            title="Circle"
+            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+              activeTool === 'shape-circle' ? 'bg-[#c9f227] text-[#12151c]' : 'text-[#94a3b8] hover:text-white'
             }`}
           >
             <Circle className="w-3.5 h-3.5" />
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTool('arrow')}
+            title="Arrow"
+            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+              activeTool === 'arrow' ? 'bg-[#c9f227] text-[#12151c]' : 'text-[#94a3b8] hover:text-white'
+            }`}
+          >
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Stamp Menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowStampMenu(!showStampMenu)}
+              title="Rubber Stamps (Approved, Paid, Draft...)"
+              className="p-1.5 text-[#94a3b8] hover:text-white hover:bg-[#232936] rounded-lg transition-colors cursor-pointer"
+            >
+              <Stamp className="w-3.5 h-3.5" />
+            </button>
+            {showStampMenu && (
+              <div className="absolute top-full mt-2 left-0 z-50 bg-[#1e2433] border border-[#384152] rounded-xl p-2 shadow-2xl space-y-1 min-w-[140px]">
+                {STAMP_PRESETS.map((st) => (
+                  <button
+                    key={st.text}
+                    type="button"
+                    onClick={() => handleAddStamp(st.text, st.color)}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold font-mono tracking-wider hover:bg-[#2a3245] transition-colors flex items-center justify-between"
+                    style={{ color: st.color }}
+                  >
+                    <span>{st.text}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <label
+            title="Add image"
+            className="p-1.5 text-[#94a3b8] hover:text-white hover:bg-[#232936] rounded-lg transition-colors cursor-pointer"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+          </label>
         </div>
 
-        {/* Center Formatting Controls */}
+        {/* Center Formatting & Undo/Redo Controls */}
         <div className="flex items-center gap-3">
+          {/* Undo & Redo */}
+          <div className="flex items-center gap-0.5 bg-[#12151c] p-1 rounded-xl border border-[#2b303c]">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={undoStack.length === 0}
+              title="Undo (Ctrl+Z)"
+              className="p-1.5 text-[#94a3b8] hover:text-white disabled:opacity-30 disabled:pointer-events-none rounded-lg transition-colors cursor-pointer"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleRedo}
+              disabled={redoStack.length === 0}
+              title="Redo (Ctrl+Y)"
+              className="p-1.5 text-[#94a3b8] hover:text-white disabled:opacity-30 disabled:pointer-events-none rounded-lg transition-colors cursor-pointer"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {/* Color palette */}
           <div className="flex items-center gap-1">
             {COLOR_PRESETS.map((c) => (
               <button
                 key={c}
                 type="button"
-                onClick={() => setActiveColor(c)}
+                onClick={() => handleColorChange(c)}
                 className={`w-5 h-5 rounded-full border border-[#475569] transition-transform ${
                   activeColor === c ? 'scale-125 ring-2 ring-[#c9f227]' : 'hover:scale-110'
                 }`}
@@ -497,13 +813,49 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
             <input
               type="color"
               value={activeColor}
-              onChange={(e) => setActiveColor(e.target.value)}
+              onChange={(e) => handleColorChange(e.target.value)}
               className="w-5 h-5 rounded-full bg-transparent cursor-pointer border-0 ml-1"
               title="Custom Color"
             />
           </div>
 
-          {/* Font Size (if text tool) */}
+          {/* Text Formatting Controls */}
+          {(activeTool === 'add-text' || (selectedItem && selectedItem.type === 'add_text')) && (
+            <div className="flex items-center gap-1 bg-[#12151c] p-1 rounded-xl border border-[#2b303c]">
+              <button
+                type="button"
+                onClick={() => setIsBold(!isBold)}
+                title="Bold Text"
+                className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  isBold ? 'bg-[#c9f227] text-[#12151c]' : 'text-[#94a3b8] hover:text-white'
+                }`}
+              >
+                <Bold className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsItalic(!isItalic)}
+                title="Italic Text"
+                className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                  isItalic ? 'bg-[#c9f227] text-[#12151c]' : 'text-[#94a3b8] hover:text-white'
+                }`}
+              >
+                <Italic className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setHasBgColor(!hasBgColor)}
+                title="White Box Background"
+                className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-all cursor-pointer ${
+                  hasBgColor ? 'bg-[#c9f227] text-[#12151c]' : 'text-[#94a3b8] hover:text-white'
+                }`}
+              >
+                BG
+              </button>
+            </div>
+          )}
+
+          {/* Font Size */}
           {(activeTool === 'add-text' || activeTool === 'edit-text' || selectedEditId) && (
             <select
               value={fontSize}
@@ -518,14 +870,14 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
             </select>
           )}
 
-          {/* Stroke Width (if draw or shape) */}
-          {(activeTool === 'draw' || activeTool === 'shape-rect' || activeTool === 'shape-circle') && (
+          {/* Stroke Width */}
+          {(activeTool === 'draw' || activeTool === 'line' || activeTool === 'arrow' || activeTool === 'shape-rect' || activeTool === 'shape-circle') && (
             <select
               value={strokeWidth}
               onChange={(e) => setStrokeWidth(Number(e.target.value))}
               className="bg-[#12151c] text-xs text-white border border-[#2b303c] rounded-lg px-2 py-1 focus:outline-none"
             >
-              {[1, 2, 4, 6, 8].map((w) => (
+              {[1, 2, 3, 5, 8].map((w) => (
                 <option key={w} value={w}>
                   {w}px stroke
                 </option>
@@ -533,16 +885,26 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
             </select>
           )}
 
-          {/* Delete Element Button */}
+          {/* Action buttons on Selected element */}
           {selectedEditId && (
-            <button
-              type="button"
-              onClick={deleteSelected}
-              className="p-1.5 text-[#ef4444] hover:bg-[#ef4444]/20 rounded-lg transition-colors cursor-pointer"
-              title="Delete selected item"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={duplicateSelected}
+                className="p-1.5 text-[#94a3b8] hover:text-white hover:bg-[#232936] rounded-lg transition-colors cursor-pointer"
+                title="Duplicate (Copy)"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={deleteSelected}
+                className="p-1.5 text-[#ef4444] hover:bg-[#ef4444]/20 rounded-lg transition-colors cursor-pointer"
+                title="Delete selected (Del)"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -551,16 +913,18 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
           <button
             type="button"
             onClick={() => setZoom((z) => Math.max(50, z - 15))}
-            className="p-1.5 text-[#94a3b8] hover:text-white hover:bg-[#232936] rounded-lg cursor-pointer"
+            className="p-1.5 text-[#94a3b8] hover:text-white rounded-lg transition-colors cursor-pointer"
             title="Zoom Out"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
-          <span className="text-xs font-mono text-[#94a3b8] min-w-[42px] text-center">{zoom}%</span>
+          <span className="text-xs font-mono text-[#cbd5e1] min-w-[40px] text-center">
+            {zoom}%
+          </span>
           <button
             type="button"
             onClick={() => setZoom((z) => Math.min(200, z + 15))}
-            className="p-1.5 text-[#94a3b8] hover:text-white hover:bg-[#232936] rounded-lg cursor-pointer"
+            className="p-1.5 text-[#94a3b8] hover:text-white rounded-lg transition-colors cursor-pointer"
             title="Zoom In"
           >
             <ZoomIn className="w-4 h-4" />
@@ -569,47 +933,54 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. MAIN WORKSPACE BODY: Sidebar Thumbnails + Center Interactive Canvas   */}
+      {/* 2. MAIN WORKSPACE: THUMBNAILS + CANVAS                                     */}
       {/* ========================================================================= */}
-      <div className="flex flex-1 min-h-[560px] max-h-[760px] overflow-hidden bg-[#0d1017]">
-        {/* Left Thumbnails Strip */}
-        <div className="w-28 sm:w-36 bg-[#141822] border-r border-[#2b303c] p-2 overflow-y-auto space-y-2 shrink-0">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] px-1 py-1 text-center">
+      <div className="flex flex-1 min-h-[600px] max-h-[78vh] overflow-hidden bg-[#0a0d14]">
+        {/* Left Page Strip */}
+        <div className="w-28 sm:w-36 bg-[#12151c] border-r border-[#2b303c] p-3 overflow-y-auto space-y-3 shrink-0 select-none">
+          <span className="text-[10px] font-bold text-[#64748b] tracking-wider uppercase block text-center">
             Pages ({totalPages})
-          </div>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => {
-            const hasEditsOnPage = edits.some((e) => e.page === pg);
-            return (
-              <div
-                key={pg}
-                onClick={() => setCurrentPage(pg)}
-                className={`p-1.5 rounded-xl border text-center cursor-pointer transition-all ${
-                  currentPage === pg
-                    ? 'border-[#c9f227] bg-[#1e2433] ring-2 ring-[#c9f227]/30'
-                    : 'border-[#232936] bg-[#0d1017] hover:border-[#475569]'
-                }`}
-              >
-                <div className="w-full aspect-[3/4] bg-[#222734] rounded-lg flex items-center justify-center text-xs text-[#94a3b8] relative overflow-hidden">
-                  <span>Page {pg}</span>
+          </span>
+          <div className="space-y-2.5">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => {
+              const hasEditsOnPage = edits.some((e) => e.page === pg);
+              const isActive = currentPage === pg;
+              return (
+                <div
+                  key={pg}
+                  onClick={() => setCurrentPage(pg)}
+                  className={`relative p-2 rounded-xl cursor-pointer transition-all border text-center ${
+                    isActive
+                      ? 'border-[#c9f227] bg-[#1e2433] shadow-md'
+                      : 'border-[#2b303c] hover:border-[#475569] bg-[#181d27]'
+                  }`}
+                >
+                  <div className="aspect-[3/4] bg-[#232936] rounded-lg mb-1 flex items-center justify-center text-xs font-mono text-[#94a3b8]">
+                    Page {pg}
+                  </div>
                   {hasEditsOnPage && (
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-[#c9f227] rounded-full" />
+                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#c9f227]" />
                   )}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
-        {/* Center Interactive Canvas View */}
+        {/* Central Document Canvas View */}
         <div
-          className="flex-1 overflow-auto p-4 sm:p-8 flex items-center justify-center relative select-none"
+          className="flex-1 overflow-auto p-4 sm:p-8 flex items-start justify-center relative select-none"
           onMouseMove={handleContainerMouseMove}
           onMouseUp={handleContainerMouseUp}
+          onClick={() => {
+            setSelectedEditId(null);
+            setShowStampMenu(false);
+          }}
         >
           {loadingPage ? (
-            <div className="flex flex-col items-center justify-center space-y-2 text-[#94a3b8]">
+            <div className="flex flex-col items-center justify-center h-96 gap-3 text-xs text-[#94a3b8]">
               <Loader2 className="w-8 h-8 animate-spin text-[#c9f227]" />
-              <span className="text-xs">Loading page {currentPage}...</span>
+              <span>Rendering page {currentPage}...</span>
             </div>
           ) : preview ? (
             <div
@@ -619,69 +990,109 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
               style={{
                 width: `${imgWidth * (zoom / 100)}px`,
                 height: `${imgHeight * (zoom / 100)}px`,
-                cursor:
-                  activeTool === 'edit-text'
-                    ? 'text'
-                    : activeTool === 'add-text'
-                    ? 'crosshair'
-                    : activeTool === 'draw'
-                    ? 'crosshair'
-                    : activeTool === 'whiteout'
-                    ? 'cell'
-                    : 'default',
               }}
-              className="relative bg-white shadow-2xl transition-all origin-top"
+              className="relative shadow-2xl bg-white rounded-xs overflow-hidden cursor-crosshair transition-size"
             >
-              {/* Underlying rendered PDF page image */}
+              {/* Rendered Background Document Image */}
               <img
                 src={preview.image_base64}
                 alt={`Page ${currentPage}`}
-                className="w-full h-full object-contain pointer-events-none"
+                className="w-full h-full object-contain pointer-events-none select-none"
+                draggable={false}
               />
 
               {/* ------------------------------------------------------------- */}
-              {/* INTERACTIVE SPANS LAYER: Hoverable & Clickable Existing Text  */}
+              {/* Interactive Text Spans Layer (For In-Place Edit Text mode)     */}
               {/* ------------------------------------------------------------- */}
-              {activeTool === 'edit-text' &&
-                preview.text_spans?.map((span, sIdx) => {
-                  const left = (span.bbox[0] / scaleX) * (zoom / 100);
-                  const top = (span.bbox[1] / scaleY) * (zoom / 100);
-                  const width = ((span.bbox[2] - span.bbox[0]) / scaleX) * (zoom / 100);
-                  const height = ((span.bbox[3] - span.bbox[1]) / scaleY) * (zoom / 100);
+              {activeTool === 'edit-text' && preview.text_spans && (
+                <div className="absolute inset-0 pointer-events-auto">
+                  {preview.text_spans.map((span, sIdx) => {
+                    const [x0, y0, x1, y1] = span.bbox;
+                    const left = (x0 / scaleX) * (zoom / 100);
+                    const top = (y0 / scaleY) * (zoom / 100);
+                    const width = ((x1 - x0) / scaleX) * (zoom / 100);
+                    const height = ((y1 - y0) / scaleY) * (zoom / 100);
 
-                  return (
-                    <div
-                      key={sIdx}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSpanClick(span);
-                      }}
-                      title={`Click to edit: "${span.text}"`}
-                      style={{
-                        left: `${left}px`,
-                        top: `${top}px`,
-                        width: `${Math.max(width, 14)}px`,
-                        height: `${Math.max(height, 12)}px`,
-                      }}
-                      className="absolute border border-dashed border-[#2563eb]/40 bg-[#2563eb]/10 hover:bg-[#2563eb]/30 hover:border-[#2563eb] rounded-xs cursor-pointer transition-colors group"
-                    />
-                  );
-                })}
+                    const hasEditedThis = edits.some(
+                      (e) =>
+                        e.type === 'replace_text' &&
+                        e.page === currentPage &&
+                        e.bbox &&
+                        Math.abs(e.bbox[0] - span.bbox[0]) < 2 &&
+                        Math.abs(e.bbox[1] - span.bbox[1]) < 2
+                    );
+
+                    return (
+                      <div
+                        key={sIdx}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSpanClick(span);
+                        }}
+                        style={{
+                          left: `${left}px`,
+                          top: `${top}px`,
+                          width: `${Math.max(width, 12)}px`,
+                          height: `${Math.max(height, 12)}px`,
+                        }}
+                        title={`Click to edit: "${span.text}"`}
+                        className={`absolute border border-dashed rounded-xs cursor-pointer transition-colors ${
+                          hasEditedThis
+                            ? 'border-[#10b981] bg-[#10b981]/20'
+                            : 'border-[#2563eb]/40 bg-[#2563eb]/10 hover:bg-[#2563eb]/30 hover:border-[#2563eb]'
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+              )}
 
               {/* ------------------------------------------------------------- */}
-              {/* STAGED EDITS ON CURRENT PAGE                                  */}
+              {/* Render Staged Interactive Elements on this page               */}
               {/* ------------------------------------------------------------- */}
               {currentPageEdits.map((item) => {
-                // If it's a replaced text span
+                const isSelected = selectedEditId === item.id;
+
                 if (item.type === 'replace_text' && item.bbox) {
-                  const left = (item.bbox[0] / scaleX) * (zoom / 100);
-                  const top = (item.bbox[1] / scaleY) * (zoom / 100);
-                  const width = ((item.bbox[2] - item.bbox[0]) / scaleX) * (zoom / 100);
-                  const height = ((item.bbox[3] - item.bbox[1]) / scaleY) * (zoom / 100);
+                  const [x0, y0, x1, y1] = item.bbox;
+                  const left = (x0 / scaleX) * (zoom / 100);
+                  const top = (y0 / scaleY) * (zoom / 100);
+                  const width = ((x1 - x0) / scaleX) * (zoom / 100);
+                  const height = ((y1 - y0) / scaleY) * (zoom / 100);
 
                   return (
                     <div
                       key={item.id}
+                      style={{
+                        left: `${left}px`,
+                        top: `${top}px`,
+                        minWidth: `${width}px`,
+                        height: `${height}px`,
+                      }}
+                      className="absolute bg-white px-1 flex items-center shadow-xs border border-[#10b981] rounded-xs pointer-events-none"
+                    >
+                      <span
+                        style={{
+                          fontSize: `${(item.size || 12) * (zoom / 100)}px`,
+                          color: item.color || '#111827',
+                          lineHeight: 1,
+                        }}
+                        className="font-medium truncate"
+                      >
+                        {item.replace_text}
+                      </span>
+                    </div>
+                  );
+                }
+
+                if (item.type === 'add_text') {
+                  const left = ((item.x || 0) / scaleX) * (zoom / 100);
+                  const top = ((item.y || 0) / scaleY) * (zoom / 100);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onMouseDown={(e) => startDrag(item.id, e)}
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedEditId(item.id);
@@ -689,133 +1100,253 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
                       style={{
                         left: `${left}px`,
                         top: `${top}px`,
-                        minWidth: `${width}px`,
-                        height: `${height}px`,
-                        color: item.color || '#111827',
-                        fontSize: `${(item.size || 12) * (zoom / 100)}px`,
                       }}
-                      className="absolute bg-white px-0.5 flex items-center font-sans whitespace-nowrap shadow-xs ring-1 ring-[#c9f227] cursor-pointer"
+                      className={`absolute px-2 py-0.5 rounded cursor-move select-none ${
+                        isSelected ? 'ring-2 ring-[#c9f227] bg-[#c9f227]/10' : ''
+                      }`}
                     >
-                      {item.replace_text}
+                      <span
+                        style={{
+                          fontSize: `${(item.size || 14) * (zoom / 100)}px`,
+                          color: item.color || '#111827',
+                          backgroundColor: item.bg_color || 'transparent',
+                          fontWeight: item.is_bold ? 'bold' : 'normal',
+                          fontStyle: item.is_italic ? 'italic' : 'normal',
+                          lineHeight: 1.2,
+                        }}
+                        className="inline-block whitespace-nowrap"
+                      >
+                        {item.text}
+                      </span>
                     </div>
                   );
                 }
 
-                // If it's an added custom text box
-                if (item.type === 'add_text' && item.x !== undefined && item.y !== undefined) {
-                  const left = (item.x / scaleX) * (zoom / 100);
-                  const top = (item.y / scaleY) * (zoom / 100);
-                  const isSelected = selectedEditId === item.id;
+                if (item.type === 'highlight') {
+                  const left = ((item.x || 0) / scaleX) * (zoom / 100);
+                  const top = ((item.y || 0) / scaleY) * (zoom / 100);
+                  const w = ((item.w || 140) / scaleX) * (zoom / 100);
+                  const h = ((item.h || 22) / scaleY) * (zoom / 100);
 
                   return (
                     <div
                       key={item.id}
                       onMouseDown={(e) => startDrag(item.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEditId(item.id);
+                      }}
                       style={{
                         left: `${left}px`,
                         top: `${top}px`,
-                        fontSize: `${(item.size || 14) * (zoom / 100)}px`,
-                        color: item.color || '#111827',
-                        backgroundColor: item.bg_color || 'transparent',
+                        width: `${w}px`,
+                        height: `${h}px`,
+                        backgroundColor: item.color || '#facc15',
+                        opacity: 0.4,
                       }}
-                      className={`absolute px-2 py-0.5 rounded cursor-move whitespace-nowrap ${
-                        isSelected
-                          ? 'ring-2 ring-[#c9f227] bg-[#c9f227]/20 shadow-md'
-                          : 'hover:ring-1 hover:ring-[#2563eb]'
+                      className={`absolute rounded-xs cursor-move mix-blend-multiply ${
+                        isSelected ? 'ring-2 ring-[#c9f227]' : ''
                       }`}
                     >
-                      <input
-                        type="text"
-                        value={item.text}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEdits((prev) =>
-                            prev.map((it) => (it.id === item.id ? { ...it, text: val } : it))
-                          );
-                        }}
-                        className="bg-transparent border-0 outline-none font-sans"
-                      />
+                      {isSelected && (
+                        <div
+                          onMouseDown={(e) => startResize(item.id, e)}
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-[#c9f227] border border-black rounded-full cursor-nwse-resize"
+                        />
+                      )}
                     </div>
                   );
                 }
 
-                // If it's a whiteout eraser block
-                if (item.type === 'whiteout' && item.x !== undefined && item.y !== undefined) {
-                  const left = (item.x / scaleX) * (zoom / 100);
-                  const top = (item.y / scaleY) * (zoom / 100);
+                if (item.type === 'line') {
+                  const left = ((item.x || 0) / scaleX) * (zoom / 100);
+                  const top = ((item.y || 0) / scaleY) * (zoom / 100);
+                  const w = ((item.w || 140) / scaleX) * (zoom / 100);
+                  const strokeCol = item.stroke_color || item.color || '#111827';
+                  const strokeW = (item.stroke_width || 2) * (zoom / 100);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onMouseDown={(e) => startDrag(item.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEditId(item.id);
+                      }}
+                      style={{
+                        left: `${left}px`,
+                        top: `${top}px`,
+                        width: `${w}px`,
+                        height: `${Math.max(20, strokeW + 10)}px`,
+                      }}
+                      className={`absolute cursor-move flex items-center ${
+                        isSelected ? 'ring-1 ring-[#c9f227]' : ''
+                      }`}
+                    >
+                      <svg className="w-full h-full overflow-visible">
+                        <line
+                          x1="0"
+                          y1="10"
+                          x2={w}
+                          y2="10"
+                          stroke={strokeCol}
+                          strokeWidth={strokeW}
+                        />
+                        {item.is_arrow && (
+                          <polygon
+                            points={`${w},10 ${w - 8},6 ${w - 8},14`}
+                            fill={strokeCol}
+                          />
+                        )}
+                      </svg>
+                      {isSelected && (
+                        <div
+                          onMouseDown={(e) => startResize(item.id, e)}
+                          className="absolute -right-1.5 w-3.5 h-3.5 bg-[#c9f227] border border-black rounded-full cursor-ew-resize"
+                        />
+                      )}
+                    </div>
+                  );
+                }
+
+                if (item.type === 'whiteout') {
+                  const left = ((item.x || 0) / scaleX) * (zoom / 100);
+                  const top = ((item.y || 0) / scaleY) * (zoom / 100);
                   const w = ((item.w || 120) / scaleX) * (zoom / 100);
                   const h = ((item.h || 24) / scaleY) * (zoom / 100);
-                  const isSelected = selectedEditId === item.id;
 
                   return (
                     <div
                       key={item.id}
                       onMouseDown={(e) => startDrag(item.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEditId(item.id);
+                      }}
                       style={{
                         left: `${left}px`,
                         top: `${top}px`,
                         width: `${w}px`,
                         height: `${h}px`,
                       }}
-                      className={`absolute bg-white shadow-xs cursor-move ${
-                        isSelected ? 'border-2 border-[#ef4444]' : 'border border-dashed border-[#cbd5e1]'
+                      className={`absolute bg-white border border-[#e2e8f0] shadow-xs cursor-move ${
+                        isSelected ? 'ring-2 ring-[#c9f227]' : ''
                       }`}
-                    />
+                    >
+                      {isSelected && (
+                        <div
+                          onMouseDown={(e) => startResize(item.id, e)}
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-[#c9f227] border border-black rounded-full cursor-nwse-resize"
+                        />
+                      )}
+                    </div>
                   );
                 }
 
-                // If it's a shape
-                if (item.type === 'shape' && item.x !== undefined && item.y !== undefined) {
-                  const left = (item.x / scaleX) * (zoom / 100);
-                  const top = (item.y / scaleY) * (zoom / 100);
+                if (item.type === 'shape') {
+                  const left = ((item.x || 0) / scaleX) * (zoom / 100);
+                  const top = ((item.y || 0) / scaleY) * (zoom / 100);
                   const w = ((item.w || 100) / scaleX) * (zoom / 100);
-                  const h = ((item.h || 60) / scaleY) * (zoom / 100);
-                  const isSelected = selectedEditId === item.id;
+                  const h = ((item.h || 50) / scaleY) * (zoom / 100);
 
                   return (
                     <div
                       key={item.id}
                       onMouseDown={(e) => startDrag(item.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEditId(item.id);
+                      }}
                       style={{
                         left: `${left}px`,
                         top: `${top}px`,
                         width: `${w}px`,
                         height: `${h}px`,
-                        borderColor: item.stroke_color || '#111827',
-                        borderWidth: `${item.stroke_width || 2}px`,
+                        borderWidth: `${(item.stroke_width || 2) * (zoom / 100)}px`,
+                        borderColor: item.stroke_color || item.color || '#111827',
+                        borderStyle: 'solid',
                         backgroundColor: item.fill_color || 'transparent',
                         borderRadius: item.shape_type === 'circle' ? '9999px' : '4px',
                       }}
-                      className={`absolute cursor-move ${
-                        isSelected ? 'ring-2 ring-[#c9f227]' : ''
-                      }`}
-                    />
+                      className={`absolute cursor-move ${isSelected ? 'ring-2 ring-[#c9f227]' : ''}`}
+                    >
+                      {isSelected && (
+                        <div
+                          onMouseDown={(e) => startResize(item.id, e)}
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-[#c9f227] border border-black rounded-full cursor-nwse-resize"
+                        />
+                      )}
+                    </div>
                   );
                 }
 
-                // If it's an uploaded image / stamp
-                if (item.type === 'image' && item.x !== undefined && item.y !== undefined) {
-                  const left = (item.x / scaleX) * (zoom / 100);
-                  const top = (item.y / scaleY) * (zoom / 100);
+                if (item.type === 'image') {
+                  const left = ((item.x || 0) / scaleX) * (zoom / 100);
+                  const top = ((item.y || 0) / scaleY) * (zoom / 100);
                   const w = ((item.w || 150) / scaleX) * (zoom / 100);
                   const h = ((item.h || 100) / scaleY) * (zoom / 100);
-                  const isSelected = selectedEditId === item.id;
 
                   return (
                     <div
                       key={item.id}
                       onMouseDown={(e) => startDrag(item.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEditId(item.id);
+                      }}
                       style={{
                         left: `${left}px`,
                         top: `${top}px`,
                         width: `${w}px`,
                         height: `${h}px`,
                       }}
-                      className={`absolute cursor-move overflow-hidden rounded ${
+                      className={`absolute cursor-move select-none ${
+                        isSelected ? 'ring-2 ring-[#c9f227] border border-dashed border-[#c9f227]' : ''
+                      }`}
+                    >
+                      <img
+                        src={item.image_base64}
+                        alt="Staged"
+                        className="w-full h-full object-contain pointer-events-none"
+                      />
+                      {isSelected && (
+                        <div
+                          onMouseDown={(e) => startResize(item.id, e)}
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-[#c9f227] border border-black rounded-full cursor-nwse-resize"
+                        />
+                      )}
+                    </div>
+                  );
+                }
+
+                if (item.type === 'stamp') {
+                  const left = ((item.x || 0) / scaleX) * (zoom / 100);
+                  const top = ((item.y || 0) / scaleY) * (zoom / 100);
+                  const w = ((item.w || 140) / scaleX) * (zoom / 100);
+                  const h = ((item.h || 45) / scaleY) * (zoom / 100);
+                  const stampCol = item.color || '#dc2626';
+
+                  return (
+                    <div
+                      key={item.id}
+                      onMouseDown={(e) => startDrag(item.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEditId(item.id);
+                      }}
+                      style={{
+                        left: `${left}px`,
+                        top: `${top}px`,
+                        width: `${w}px`,
+                        height: `${h}px`,
+                        borderColor: stampCol,
+                        color: stampCol,
+                      }}
+                      className={`absolute border-2 rounded-lg cursor-move flex items-center justify-center font-black font-mono tracking-widest uppercase select-none -rotate-6 ${
                         isSelected ? 'ring-2 ring-[#c9f227]' : ''
                       }`}
                     >
-                      <img src={item.image_base64} alt="Stamp" className="w-full h-full object-contain pointer-events-none" />
+                      <span style={{ fontSize: `${16 * (zoom / 100)}px` }}>{item.text}</span>
                     </div>
                   );
                 }
@@ -823,7 +1354,7 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
                 return null;
               })}
 
-              {/* SVG Overlay for Freehand Drawing Strokes */}
+              {/* SVG Overlay for Freehand Drawing Strokes (Always Uses Exact Color!) */}
               <svg className="absolute inset-0 w-full h-full pointer-events-none">
                 {currentPageEdits
                   .filter((e) => e.type === 'drawing' && e.points)
@@ -831,12 +1362,13 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
                     const pts = draw.points!
                       .map(([x, y]) => `${(x / scaleX) * (zoom / 100)},${(y / scaleY) * (zoom / 100)}`)
                       .join(' ');
+                    const strokeCol = draw.stroke_color || draw.color || '#111827';
                     return (
                       <polyline
                         key={draw.id}
                         points={pts}
                         fill="none"
-                        stroke={draw.stroke_color || '#2563eb'}
+                        stroke={strokeCol}
                         strokeWidth={(draw.stroke_width || 2) * (zoom / 100)}
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -859,9 +1391,7 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
                 )}
               </svg>
 
-              {/* ------------------------------------------------------------- */}
-              {/* MODAL POPOVER: In-Place Text Edit on Click                    */}
-              {/* ------------------------------------------------------------- */}
+              {/* In-Place Text Edit Modal Popover */}
               {editingSpan && (
                 <div
                   style={{
@@ -954,7 +1484,7 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
           {edits.length > 0 && (
             <button
               type="button"
-              onClick={() => setEdits([])}
+              onClick={() => pushEdits([])}
               className="text-[11px] text-[#ef4444] hover:underline ml-2 cursor-pointer"
             >
               Reset all
@@ -982,6 +1512,13 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
           )}
         </button>
       </div>
+
+      {/* Signature Studio Modal */}
+      <SignatureModal
+        isOpen={showSignatureModal}
+        onClose={() => setShowSignatureModal(false)}
+        onAdopt={handleAdoptSignature}
+      />
     </div>
   );
 };

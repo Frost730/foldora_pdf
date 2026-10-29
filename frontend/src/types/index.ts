@@ -90,7 +90,16 @@ export interface PreviewResponse {
   text_spans?: TextSpan[];
 }
 
-export type VisualEditType = 'replace_text' | 'add_text' | 'image' | 'drawing' | 'shape' | 'whiteout';
+export type VisualEditType =
+  | 'replace_text'
+  | 'add_text'
+  | 'image'
+  | 'drawing'
+  | 'shape'
+  | 'whiteout'
+  | 'highlight'
+  | 'line'
+  | 'stamp';
 
 export interface VisualEditItem {
   id: string;
@@ -104,6 +113,13 @@ export interface VisualEditItem {
   y?: number;
   w?: number;
   h?: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  is_arrow?: boolean;
+  is_bold?: boolean;
+  is_italic?: boolean;
   size?: number;
   color?: string;
   bg_color?: string;
