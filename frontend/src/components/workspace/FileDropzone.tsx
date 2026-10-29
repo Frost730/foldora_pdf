@@ -109,7 +109,7 @@ export const FileDropzone: React.FC<FileDropzoneProps> = ({
 
           <div className="pt-2 flex items-center gap-2 text-[11px] text-[#94a3b8]">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#10b981]" />
-            <span>Encrypted in transit · Auto-wiped after 15 min</span>
+            <span>Encrypted in transit · Auto-wiped after 5 min</span>
           </div>
         </div>
       </div>

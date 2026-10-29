@@ -69,6 +69,9 @@ class JobManager:
         job = self._jobs.get(job_id)
         if not job:
             job = self._load_job_from_disk(job_id)
+        if job and job.expires_at and job.expires_at < datetime.now(timezone.utc):
+            self.delete_job(job_id)
+            return None
         return job
 
     def update_job(
@@ -149,9 +152,9 @@ class JobManager:
         try:
             storage_root = settings.storage_path
             if storage_root.exists():
-                one_hour_ago = datetime.now().timestamp() - 3600
+                orphan_cutoff = datetime.now().timestamp() - (settings.JOB_TTL_MINUTES * 60)
                 for item in storage_root.iterdir():
-                    if item.is_dir() and item.stat().st_mtime < one_hour_ago:
+                    if item.is_dir() and item.stat().st_mtime < orphan_cutoff:
                         if item.name not in self._jobs:
                             cleanup_directory(item)
         except Exception as exc:

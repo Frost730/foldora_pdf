@@ -11,7 +11,7 @@ Deployable on **Render** as a single Docker-based web service.
 ## 1. Architectural Highlights
 
 - **Guest-First Workflow**: No account registration, paywalls, or newsletters required.
-- **Zero Permanent Storage**: Documents reside only in container scratch directories and are eradicated 15 minutes after job completion.
+- **Zero Permanent Storage**: Documents reside only in container scratch directories and are eradicated 5 minutes after job completion.
 - **Native Document Engines**: Operations run real binary pipelines via PyMuPDF, Ghostscript, qpdf, LibreOffice headless, and Tesseract/OCRmyPDF.
 - **Single-Origin Deployment**: FastAPI serves both high-throughput asynchronous API endpoints and the compiled React 19 single-page application (SPA).
 - **Subprocess Security**: Native binaries run through controlled subprocess calls with strict timeouts, zero shell interpolation (`shell=False`), and binary magic-byte verification.
@@ -202,7 +202,7 @@ curl http://localhost:10000/healthz
 | `MAX_FILES_PER_JOB` | `20` | Maximum number of files processed in a single batch. |
 | `MAX_PAGES_PER_JOB` | `200` | Maximum page count ceiling to prevent memory exhaustion. |
 | `MAX_CONCURRENT_JOBS` | `5` | Semaphore bounding simultaneous CPU-intensive tasks. |
-| `JOB_TTL_MINUTES` | `15` | Minutes output files remain available before auto-wipe. |
+| `JOB_TTL_MINUTES` | `5` | Minutes output files remain available before auto-wipe. |
 | `MAX_PROCESSING_SECONDS` | `180` | Subprocess timeout limit. |
 | `AI_PROVIDER` | *(empty)* | Optional external AI provider (`openai`, `gemini`, `ollama`). |
 | `AI_API_KEY` | *(empty)* | API key for external AI provider. |

@@ -24,9 +24,9 @@ class Settings(BaseSettings):
     MAX_FILES_PER_JOB: int = 20
     MAX_PAGES_PER_JOB: int = 100
     MAX_CONCURRENT_JOBS: int = 2
-    JOB_TTL_MINUTES: int = 15
+    JOB_TTL_MINUTES: int = 5
     MAX_PROCESSING_SECONDS: int = 180
-    CLEANUP_INTERVAL_SECONDS: int = 60
+    CLEANUP_INTERVAL_SECONDS: int = 30
 
     # Storage
     TEMP_DIR: Optional[str] = None

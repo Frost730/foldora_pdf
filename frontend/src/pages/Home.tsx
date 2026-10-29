@@ -66,7 +66,7 @@ export const Home: React.FC = () => {
 
         {/* Subtitle */}
         <p className="text-base sm:text-lg text-[#5e6b7d] max-w-2xl mx-auto leading-relaxed">
-          Stitch, optimize, edit, sign, and convert documents effortlessly. Guest-first usage with zero database retention and automated 15-minute file purging.
+          Stitch, optimize, edit, sign, and convert documents effortlessly. Guest-first usage with zero database retention and automated 5-minute file purging.
         </p>
 
         {/* Quick Hero Dropzone */}
@@ -159,7 +159,7 @@ export const Home: React.FC = () => {
               {
                 step: '04',
                 title: 'Download & Purge',
-                desc: 'Retrieve your output file or ZIP bundle. Automatically purged after 15 minutes.',
+                desc: 'Retrieve your output file or ZIP bundle. Automatically purged after 5 minutes.',
               },
             ].map((st, i) => (
               <div key={i} className="flex flex-col p-5 rounded-2xl bg-[#fbfbfa] border border-[#e3e3dc] space-y-2">
@@ -186,7 +186,7 @@ export const Home: React.FC = () => {
               Your confidential documents never linger.
             </h3>
             <p className="text-xs sm:text-sm text-[#94a3b8] leading-relaxed">
-              Unlike generic services, Foldora stores zero permanent copies and requires no database. Files reside in temporary container directories and are completely eradicated after 15 minutes.
+              Unlike generic services, Foldora stores zero permanent copies and requires no database. Files reside in temporary container directories and are completely eradicated after 5 minutes.
             </p>
           </div>
 
@@ -226,7 +226,7 @@ export const Home: React.FC = () => {
             },
             {
               q: 'How long are my uploaded files stored on the server?',
-              a: 'Files are kept only for the duration of the processing job plus a 15-minute grace period to allow you to download your results. An automated cleanup task permanently purges all files from the server.',
+              a: 'Files are kept only for the duration of the processing job plus a 5-minute grace period to allow you to download your results. An automated cleanup task permanently purges all files from the server.',
             },
             {
               q: 'Are conversions real or simulated?',

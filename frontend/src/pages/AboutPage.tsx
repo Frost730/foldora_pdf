@@ -23,7 +23,7 @@ export const AboutPage: React.FC = () => {
           </div>
           <h3 className="text-sm font-bold text-[#12151c]">Zero Permanent Storage</h3>
           <p className="text-xs text-[#64748b] leading-relaxed">
-            We operate no document database. Every uploaded file is written to an ephemeral scratch directory and permanently eradicated 15 minutes after completion.
+            We operate no document database. Every uploaded file is written to an ephemeral scratch directory and permanently eradicated 5 minutes after completion.
           </p>
         </div>
 

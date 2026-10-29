@@ -16,7 +16,7 @@ export const Footer: React.FC = () => {
             <div>
               <h4 className="text-white font-semibold text-sm">Zero Permanent Storage</h4>
               <p className="text-xs text-[#64748b] mt-0.5">
-                Files are strictly isolated in temporary job directories and automatically wiped after 15 minutes.
+                Files are strictly isolated in temporary job directories and automatically wiped after 5 minutes.
               </p>
             </div>
           </div>

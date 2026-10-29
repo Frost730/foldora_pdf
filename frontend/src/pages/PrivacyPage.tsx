@@ -18,9 +18,9 @@ export const PrivacyPage: React.FC = () => {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-base font-bold text-[#12151c]">2. Automated 15-Minute File Purging</h2>
+          <h2 className="text-base font-bold text-[#12151c]">2. Automated 5-Minute File Purging</h2>
           <p>
-            Uploaded files and generated output documents exist only for the duration of the active processing job plus an automated 15-minute grace window allowing you to download the result. Our background scheduler scrubs and deletes expired folders every 60 seconds.
+            Uploaded files and generated output documents exist only for the duration of the active processing job plus an automated 5-minute grace window allowing you to download the result. Our background scheduler scrubs and deletes expired folders every 30 seconds.
           </p>
         </section>
 
