@@ -31,7 +31,7 @@ WORKDIR /app
 # - ghostscript: PDF compression & PDF/A generation
 # - qpdf: Structural repair and linearized PDF checking
 # - poppler-utils: PDF utilities and inspection
-# - libreoffice-nogui: Headless office document conversion
+# - libreoffice-nogui: Headless office document conversion (Writer, Calc, Impress)
 # - tesseract-ocr & language packs: OCR optical recognition
 # - core system fonts for document rendering
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -39,9 +39,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     qpdf \
     poppler-utils \
     libreoffice-nogui \
-    libreoffice-writer \
-    libreoffice-calc \
-    libreoffice-impress \
     tesseract-ocr \
     tesseract-ocr-eng \
     fonts-dejavu-core \
