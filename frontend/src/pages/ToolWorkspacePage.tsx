@@ -6,6 +6,8 @@ import { ToolIcon } from '../components/common/ToolIcon';
 import { FileDropzone } from '../components/workspace/FileDropzone';
 import { FileList } from '../components/workspace/FileList';
 import { ToolOptionsForm } from '../components/workspace/ToolOptionsForm';
+import { VisualPdfEditor } from '../components/workspace/VisualPdfEditor';
+import { VisualEditItem } from '../types';
 import { PageOrganizer } from '../components/workspace/PageOrganizer';
 import { JobProgress } from '../components/workspace/JobProgress';
 import { ResultPanel } from '../components/workspace/ResultPanel';
@@ -28,6 +30,26 @@ export const ToolWorkspacePage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editorMode, setEditorMode] = useState<'visual' | 'form'>('visual');
+
+  const handleApplyVisualEdits = async (visualEdits: VisualEditItem[]) => {
+    if (!tool || !files.length) return;
+    setIsProcessing(true);
+    setActionError(null);
+
+    try {
+      const opts = { ...options, visual_edits: visualEdits };
+      const { job_id } = await createJob(tool.id, files, opts);
+      const completedJob = await pollJob(job_id, (updated) => {
+        setJob(updated);
+      });
+      setJob(completedJob);
+    } catch (err: any) {
+      setActionError(err.message || 'Operation failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   useEffect(() => {
     if (!toolId) return;
@@ -179,6 +201,7 @@ export const ToolWorkspacePage: React.FC = () => {
   }
 
   const isOrganizePageTool = tool.id === 'organize-pdf';
+  const isVisualEditorTool = ['edit-pdf', 'edit-text', 'add-text', 'draw-freehand', 'fill-and-sign'].includes(tool.id);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-8">
@@ -236,26 +259,89 @@ export const ToolWorkspacePage: React.FC = () => {
             />
           )}
 
-          {/* Selected File List */}
-          {files.length > 0 && !isOrganizePageTool && (
-            <FileList
-              files={files}
-              onRemove={handleRemoveFile}
-              onMoveUp={handleMoveUp}
-              onMoveDown={handleMoveDown}
-              onPreview={(f) => setPreviewFile(f)}
-              allowReorder={tool.max_files > 1}
-            />
+          {/* Visual Editor vs Form View for Interactive Editing Tools */}
+          {files.length > 0 && !isOrganizePageTool && isVisualEditorTool && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 p-1 bg-[#f1f1ec] border border-[#e3e3dc] rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setEditorMode('visual')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      editorMode === 'visual'
+                        ? 'bg-[#12151c] text-[#c9f227] shadow-xs'
+                        : 'text-[#64748b] hover:text-[#12151c]'
+                    }`}
+                  >
+                    🎨 Visual Canvas Editor (iLovePDF Style)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditorMode('form')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      editorMode === 'form'
+                        ? 'bg-[#12151c] text-[#c9f227] shadow-xs'
+                        : 'text-[#64748b] hover:text-[#12151c]'
+                    }`}
+                  >
+                    ⚙️ Quick Options Form
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setFiles([])}
+                  className="text-xs text-[#ef4444] hover:underline cursor-pointer"
+                >
+                  Change Document
+                </button>
+              </div>
+
+              {editorMode === 'visual' ? (
+                <VisualPdfEditor
+                  file={files[0]}
+                  onApplyEdits={handleApplyVisualEdits}
+                  isProcessing={isProcessing}
+                />
+              ) : (
+                <>
+                  <FileList
+                    files={files}
+                    onRemove={handleRemoveFile}
+                    onMoveUp={handleMoveUp}
+                    onMoveDown={handleMoveDown}
+                    onPreview={(f) => setPreviewFile(f)}
+                    allowReorder={tool.max_files > 1}
+                  />
+                  <div className="p-6 bg-white border border-[#e3e3dc] rounded-2xl shadow-xs space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#94a3b8]">
+                      Tool Options & Preferences
+                    </h3>
+                    <ToolOptionsForm toolId={tool.id} options={options} onChange={setOptions} pageCount={pageCount} />
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
-          {/* Tool Options Configuration Form */}
-          {files.length > 0 && !isOrganizePageTool && (
-            <div className="p-6 bg-white border border-[#e3e3dc] rounded-2xl shadow-xs space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#94a3b8]">
-                Tool Options & Preferences
-              </h3>
-              <ToolOptionsForm toolId={tool.id} options={options} onChange={setOptions} pageCount={pageCount} />
-            </div>
+          {/* Standard File List and Options Form for Non-Visual Tools */}
+          {files.length > 0 && !isOrganizePageTool && !isVisualEditorTool && (
+            <>
+              <FileList
+                files={files}
+                onRemove={handleRemoveFile}
+                onMoveUp={handleMoveUp}
+                onMoveDown={handleMoveDown}
+                onPreview={(f) => setPreviewFile(f)}
+                allowReorder={tool.max_files > 1}
+              />
+              <div className="p-6 bg-white border border-[#e3e3dc] rounded-2xl shadow-xs space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#94a3b8]">
+                  Tool Options & Preferences
+                </h3>
+                <ToolOptionsForm toolId={tool.id} options={options} onChange={setOptions} pageCount={pageCount} />
+              </div>
+            </>
           )}
 
           {/* Error Notice */}
@@ -267,7 +353,7 @@ export const ToolWorkspacePage: React.FC = () => {
           )}
 
           {/* Execute Primary CTA Button */}
-          {files.length > 0 && (
+          {files.length > 0 && (!isVisualEditorTool || editorMode === 'form') && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#e3e3dc]">
               <span className="text-xs text-[#64748b]">
                 {files.length} document{files.length > 1 ? 's' : ''} staged for {tool.name}

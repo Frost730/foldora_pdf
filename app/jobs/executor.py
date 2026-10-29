@@ -245,6 +245,13 @@ async def execute_job(job_id: str) -> None:
         # -------------------------------------------------------------
         # Category E: Edit and annotate PDF
         # -------------------------------------------------------------
+        elif tool_id in ("edit-pdf", "visual-edit-pdf") or opts.get("visual_edits"):
+            out_p = job_dir / "edited_document.pdf"
+            v_edits = opts.get("visual_edits", [])
+            res_meta = editor.apply_visual_edits(input_paths[0], out_p, edits=v_edits)
+            meta_update.update(res_meta)
+            output_files.append(_make_output_file(job_id, job.download_token, out_p, "edited_document.pdf", "application/pdf"))
+
         elif tool_id == "edit-text":
             out_p = job_dir / "edited_document.pdf"
             find_txt = opts.get("find_text", "")

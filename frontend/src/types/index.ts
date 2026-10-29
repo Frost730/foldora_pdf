@@ -70,6 +70,14 @@ export interface UploadedFileItem {
   rotation?: number;
 }
 
+export interface TextSpan {
+  text: string;
+  bbox: [number, number, number, number]; // [x0, y0, x1, y1] in PDF points
+  size: number;
+  font: string;
+  color: string;
+}
+
 export interface PreviewResponse {
   total_pages: number;
   current_page: number;
@@ -77,4 +85,33 @@ export interface PreviewResponse {
   width: number;
   height: number;
   text_content?: string;
+  page_width_pt?: number;
+  page_height_pt?: number;
+  text_spans?: TextSpan[];
+}
+
+export type VisualEditType = 'replace_text' | 'add_text' | 'image' | 'drawing' | 'shape' | 'whiteout';
+
+export interface VisualEditItem {
+  id: string;
+  type: VisualEditType;
+  page: number;
+  find_text?: string;
+  replace_text?: string;
+  bbox?: [number, number, number, number];
+  text?: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  size?: number;
+  color?: string;
+  bg_color?: string;
+  font_family?: string;
+  image_base64?: string;
+  points?: [number, number][];
+  stroke_width?: number;
+  stroke_color?: string;
+  shape_type?: 'rect' | 'circle';
+  fill_color?: string;
 }

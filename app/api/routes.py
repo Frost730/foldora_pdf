@@ -282,6 +282,28 @@ async def generate_preview(
         img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
         text_snippet = page.get_text("text")[:300].strip()
+
+        # Extract structured text spans with bounding boxes for visual editing
+        spans_data = []
+        try:
+            td = page.get_text("dict")
+            for block in td.get("blocks", []):
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        txt = span.get("text", "").strip()
+                        if txt:
+                            c = span.get("color", 0)
+                            color_hex = f"#{c:06x}" if isinstance(c, int) else "#111827"
+                            spans_data.append({
+                                "text": txt,
+                                "bbox": [round(float(x), 2) for x in span.get("bbox", [0, 0, 0, 0])],
+                                "size": round(float(span.get("size", 12.0)), 1),
+                                "font": span.get("font", "Helvetica"),
+                                "color": color_hex
+                            })
+        except Exception:
+            spans_data = []
+
         doc.close()
 
         return PreviewResponse(
@@ -290,7 +312,10 @@ async def generate_preview(
             image_base64=f"data:image/jpeg;base64,{img_b64}",
             width=pix.width,
             height=pix.height,
-            text_content=text_snippet
+            text_content=text_snippet,
+            page_width_pt=round(float(rect.width), 2),
+            page_height_pt=round(float(rect.height), 2),
+            text_spans=spans_data
         )
     except HTTPException:
         raise

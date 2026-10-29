@@ -380,7 +380,18 @@ ALL_TOOLS: List[ToolDefinition] = [
     ),
 
     # E. Edit and annotate PDF
-        ToolDefinition(
+    ToolDefinition(
+        id="edit-pdf",
+        name="Edit PDF",
+        tagline="Visually edit text, add text, images, shapes, and freehand annotations.",
+        description="The complete visual PDF editor. Click existing text on the PDF to edit it, place custom text boxes, add images, draw signatures, whiteout content, and add shapes directly on your document.",
+        category=ToolCategory.EDIT,
+        icon="PenTool",
+        accepts=[".pdf"],
+        max_files=1,
+        popular=True,
+    ),
+    ToolDefinition(
         id="edit-text",
         name="Edit Text in PDF",
         tagline="Find, replace, and modify text directly in your PDF.",

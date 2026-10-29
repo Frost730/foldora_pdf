@@ -85,3 +85,6 @@ class PreviewResponse(BaseModel):
     width: int
     height: int
     text_content: Optional[str] = None
+    page_width_pt: Optional[float] = None
+    page_height_pt: Optional[float] = None
+    text_spans: Optional[List[Dict[str, Any]]] = None

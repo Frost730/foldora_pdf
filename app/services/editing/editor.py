@@ -1,3 +1,4 @@
+import base64
 import math
 import logging
 from pathlib import Path
@@ -413,4 +414,148 @@ def replace_text_in_pdf(
         "find_text": find_text,
         "replace_text": replace_text,
         "message": msg
+    }
+
+
+def apply_visual_edits(
+    file_path: Path,
+    output_path: Path,
+    edits: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Apply visual canvas annotations and text edits to PDF:
+    - Text replacements (redact original bbox, insert replacement text)
+    - Added text boxes (with custom font size, color, background)
+    - Whiteout / redactor blocks
+    - Freehand drawing strokes (signatures)
+    - Image stamps / uploaded logos
+    - Shapes (rectangles, circles)
+    """
+    doc = pymupdf.open(str(file_path))
+    if doc.is_encrypted:
+        try:
+            doc.authenticate("")
+        except Exception:
+            pass
+
+    applied_count = 0
+    total_pages = len(doc)
+
+    # Group edits by page
+    edits_by_page: Dict[int, List[Dict[str, Any]]] = {}
+    for edit in edits:
+        p_idx = int(edit.get("page", 1)) - 1
+        if 0 <= p_idx < total_pages:
+            edits_by_page.setdefault(p_idx, []).append(edit)
+
+    for p_idx, page_edits in edits_by_page.items():
+        page = doc[p_idx]
+
+        # 1. First pass: Apply all redactions & whiteouts
+        for item in page_edits:
+            itype = item.get("type")
+            if itype == "replace_text":
+                bbox = item.get("bbox")
+                if bbox and len(bbox) == 4:
+                    rect = pymupdf.Rect(*bbox)
+                    page.add_redact_annot(rect, fill=(1, 1, 1))
+                elif item.get("find_text"):
+                    for r in page.search_for(item["find_text"]):
+                        page.add_redact_annot(r, fill=(1, 1, 1))
+            elif itype == "whiteout":
+                bbox = item.get("bbox") or [
+                    item.get("x", 0),
+                    item.get("y", 0),
+                    item.get("x", 0) + item.get("w", 50),
+                    item.get("y", 0) + item.get("h", 20)
+                ]
+                page.add_redact_annot(pymupdf.Rect(*bbox), fill=(1, 1, 1))
+
+        page.apply_redactions()
+
+        # 2. Second pass: Insert replaced text, added text, images, drawings, shapes
+        for item in page_edits:
+            itype = item.get("type")
+
+            if itype == "replace_text":
+                new_text = item.get("replace_text", "")
+                if new_text:
+                    bbox = item.get("bbox")
+                    color = hex_to_rgb(item.get("color", "#111827"))
+                    fsize = float(item.get("size", 12.0))
+                    if bbox and len(bbox) == 4:
+                        pt = pymupdf.Point(bbox[0], bbox[3] - 2.0)
+                        page.insert_text(pt, new_text, fontsize=fsize, color=color, overlay=True)
+                        applied_count += 1
+
+            elif itype == "add_text":
+                text_content = item.get("text", "")
+                if text_content:
+                    x = float(item.get("x", 72.0))
+                    y = float(item.get("y", 72.0))
+                    fsize = float(item.get("size", 14.0))
+                    color = hex_to_rgb(item.get("color", "#111827"))
+                    bg = item.get("bg_color")
+                    if bg and bg != "transparent":
+                        bg_rgb = hex_to_rgb(bg)
+                        tw = len(text_content) * fsize * 0.55 + 12
+                        th = fsize * 1.3
+                        page.draw_rect(pymupdf.Rect(x - 4, y - 2, x + tw, y + th), color=bg_rgb, fill=bg_rgb)
+                    page.insert_text(pymupdf.Point(x, y + fsize), text_content, fontsize=fsize, color=color, overlay=True)
+                    applied_count += 1
+
+            elif itype == "drawing":
+                points_raw = item.get("points", [])
+                if len(points_raw) >= 2:
+                    color = hex_to_rgb(item.get("color", "#2563eb"))
+                    width = float(item.get("stroke_width", 2.0))
+                    pts = [pymupdf.Point(p[0], p[1]) for p in points_raw]
+                    shape = page.new_shape()
+                    shape.draw_polyline(pts)
+                    shape.finish(color=color, width=width)
+                    shape.commit()
+                    applied_count += 1
+
+            elif itype == "image":
+                img_b64 = item.get("image_base64", "")
+                if img_b64:
+                    if "," in img_b64:
+                        img_b64 = img_b64.split(",", 1)[1]
+                    img_bytes = base64.b64decode(img_b64)
+                    x = float(item.get("x", 72.0))
+                    y = float(item.get("y", 72.0))
+                    w = float(item.get("width", 150.0))
+                    h = float(item.get("height", 100.0))
+                    rect = pymupdf.Rect(x, y, x + w, y + h)
+                    page.insert_image(rect, stream=img_bytes, keep_proportion=True)
+                    applied_count += 1
+
+            elif itype == "shape":
+                stype = item.get("shape_type", "rect")
+                x = float(item.get("x", 72.0))
+                y = float(item.get("y", 72.0))
+                w = float(item.get("w", 100.0))
+                h = float(item.get("h", 50.0))
+                stroke_c = hex_to_rgb(item.get("stroke_color", "#111827"))
+                sw = float(item.get("stroke_width", 2.0))
+                rect = pymupdf.Rect(x, y, x + w, y + h)
+                fill_c = hex_to_rgb(item["fill_color"]) if item.get("fill_color") and item.get("fill_color") != "transparent" else None
+                if stype == "circle":
+                    center = pymupdf.Point(x + w / 2, y + h / 2)
+                    radius = min(w, h) / 2
+                    page.draw_circle(center, radius, color=stroke_c, fill=fill_c, width=sw)
+                else:
+                    page.draw_rect(rect, color=stroke_c, fill=fill_c, width=sw)
+                applied_count += 1
+
+    try:
+        doc.save(str(output_path), garbage=3, deflate=True)
+    except Exception:
+        doc.save(str(output_path), deflate=True)
+    doc.close()
+
+    return {
+        "success": True,
+        "applied_edits_count": applied_count,
+        "message": f"Successfully applied {applied_count} visual annotation(s) and edit(s)."
     }

@@ -279,3 +279,52 @@ def test_replace_text_in_pdf():
 
     pdf.unlink(missing_ok=True)
     out.unlink(missing_ok=True)
+
+
+def test_apply_visual_edits():
+    pdf = create_sample_pdf(2, "Contract Agreement Between Parties")
+    out = Path(tempfile.NamedTemporaryFile(suffix=".pdf", delete=False).name)
+
+    edits = [
+        {
+            "type": "replace_text",
+            "page": 1,
+            "find_text": "Contract Agreement",
+            "replace_text": "Modified Terms",
+            "bbox": [50.0, 50.0, 250.0, 100.0],
+            "size": 14.0,
+            "color": "#2563eb"
+        },
+        {
+            "type": "add_text",
+            "page": 1,
+            "text": "APPROVED VISUAL STAMP",
+            "x": 72.0,
+            "y": 200.0,
+            "size": 16.0,
+            "color": "#059669"
+        },
+        {
+            "type": "whiteout",
+            "page": 1,
+            "x": 72.0,
+            "y": 300.0,
+            "w": 100.0,
+            "h": 20.0
+        }
+    ]
+
+    res = editor.apply_visual_edits(pdf, out, edits)
+    assert res["success"] is True
+    assert res["applied_edits_count"] >= 2
+    assert out.exists()
+
+    doc = pymupdf.open(str(out))
+    assert len(doc) == 2
+    page1_text = doc[0].get_text()
+    assert "Modified Terms" in page1_text
+    assert "APPROVED VISUAL STAMP" in page1_text
+    doc.close()
+
+    pdf.unlink(missing_ok=True)
+    out.unlink(missing_ok=True)
