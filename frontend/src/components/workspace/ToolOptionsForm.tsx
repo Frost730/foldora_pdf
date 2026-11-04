@@ -10,6 +10,7 @@ interface ToolOptionsFormProps {
   onChange: (options: Record<string, any>) => void;
   pageCount?: number;
   file?: File;
+  onSwitchToVisual?: () => void;
 }
 
 const parsePagesString = (str: string): Set<number> => {
@@ -57,6 +58,7 @@ export const ToolOptionsForm: React.FC<ToolOptionsFormProps> = ({
   onChange,
   pageCount,
   file,
+  onSwitchToVisual,
 }) => {
   const [showPassword, setShowPassword] = React.useState(false);
   const [copiedPassword, setCopiedPassword] = React.useState(false);
@@ -2123,13 +2125,25 @@ export const ToolOptionsForm: React.FC<ToolOptionsFormProps> = ({
           )}
         </div>
 
-        <div className="p-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-[11px] text-[#64748b] space-y-1">
-          <span className="font-semibold text-[#12151c] flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5 text-[#10b981]" />
-            Visual Canvas Support Available
-          </span>
+        <div className="p-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-[11px] text-[#64748b] space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-[#12151c] flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#10b981]" />
+              Visual Canvas Mode Available
+            </span>
+            {onSwitchToVisual && (
+              <button
+                type="button"
+                onClick={onSwitchToVisual}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#12151c] text-[#c9f227] text-xs font-semibold rounded-lg hover:bg-[#1e2433] transition-colors shadow-xs"
+              >
+                <PenTool className="w-3.5 h-3.5" />
+                <span>Open Visual Canvas Editor</span>
+              </button>
+            )}
+          </div>
           <p>
-            You can also switch to the <strong>Visual Canvas Editor</strong> tab above to click, inspect, and fill form fields directly on top of the document.
+            Switch to the <strong>Visual Canvas Editor</strong> tab above to click anywhere on the page, type text onto blank lines, place electronic signatures, or draw new form fields.
           </p>
         </div>
       </div>

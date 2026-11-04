@@ -416,7 +416,23 @@ export const ToolWorkspacePage: React.FC = () => {
 
   const isOrganizePageTool = tool.id === 'organize-pdf';
 
-  const isVisualEditorTool = ['edit-pdf', 'edit-text', 'add-text', 'draw-freehand', 'fill-and-sign', 'sign-pdf', 'create-signature', 'add-image', 'add-shapes', 'add-comments', 'annotate-pdf'].includes(tool.id);
+  const isVisualEditorTool = [
+    'edit-pdf',
+    'edit-text',
+    'fill-form',
+    'fill-and-sign',
+    'sign-pdf',
+    'create-signature',
+    'add-text',
+    'draw-freehand',
+    'add-image',
+    'add-shapes',
+    'add-comments',
+    'annotate-pdf',
+    'highlight-text',
+    'underline-strikethrough',
+    'add-stamp',
+  ].includes(tool.id);
 
 
 
@@ -647,7 +663,7 @@ export const ToolWorkspacePage: React.FC = () => {
 
                     </h3>
 
-                    <ToolOptionsForm toolId={tool.id} options={options} onChange={setOptions} pageCount={pageCount} file={files[0]} />
+                    <ToolOptionsForm toolId={tool.id} options={options} onChange={setOptions} pageCount={pageCount} file={files[0]} onSwitchToVisual={isVisualEditorTool ? () => setEditorMode('visual') : undefined} />
 
                   </div>
 
@@ -691,7 +707,7 @@ export const ToolWorkspacePage: React.FC = () => {
 
                 </h3>
 
-                <ToolOptionsForm toolId={tool.id} options={options} onChange={setOptions} pageCount={pageCount} file={files[0]} />
+                <ToolOptionsForm toolId={tool.id} options={options} onChange={setOptions} pageCount={pageCount} file={files[0]} onSwitchToVisual={isVisualEditorTool ? () => setEditorMode('visual') : undefined} />
 
               </div>
 
