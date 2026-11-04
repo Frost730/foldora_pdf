@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, Optional, List
 from app.jobs.models import Job, JobStatus, OutputFile
 from app.core.config import settings
-from app.core.security import generate_job_id, generate_download_token
+from app.core.security import generate_job_id, generate_download_token, validate_job_id
 from app.utils.file_utils import get_job_dir, cleanup_directory
 
 logger = logging.getLogger("foldora.jobs")
@@ -28,7 +28,9 @@ class JobManager:
 
     def _load_job_from_disk(self, job_id: str) -> Optional[Job]:
         try:
-            job_dir = get_job_dir(job_id)
+            job_dir = get_job_dir(job_id, create=False)
+            if not job_dir.exists():
+                return None
             meta_path = job_dir / "job.json"
             if meta_path.exists():
                 import json
@@ -36,7 +38,7 @@ class JobManager:
                 job = Job(**data)
                 self._jobs[job_id] = job
                 return job
-        except Exception as e:
+        except (ValueError, Exception) as e:
             logger.warning("Could not load job %s from disk: %s", job_id, e)
         return None
 
@@ -66,6 +68,11 @@ class JobManager:
         return job
 
     def get_job(self, job_id: str) -> Optional[Job]:
+        try:
+            validate_job_id(job_id)
+        except ValueError:
+            return None
+
         job = self._jobs.get(job_id)
         if not job:
             job = self._load_job_from_disk(job_id)
@@ -123,11 +130,15 @@ class JobManager:
         return True
 
     def delete_job(self, job_id: str) -> bool:
+        try:
+            validate_job_id(job_id)
+            job_dir = get_job_dir(job_id, create=False)
+            cleaned = cleanup_directory(job_dir)
+        except ValueError:
+            return False
         job = self._jobs.pop(job_id, None)
-        job_dir = settings.storage_path / job_id
-        cleanup_directory(job_dir)
         logger.info("Deleted job %s and removed temporary files", job_id)
-        return job is not None
+        return job is not None or cleaned
 
     async def acquire_slot(self):
         """Bounded worker concurrency limit."""

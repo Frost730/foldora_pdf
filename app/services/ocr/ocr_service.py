@@ -18,6 +18,11 @@ def ocr_pdf(
     Produce a searchable PDF by performing OCR on scanned pages.
     Uses OCRmyPDF if available, or PyMuPDF page inspection and OCR fallback.
     """
+    # Sanitize language parameter to prevent CLI option injection
+    import re
+    if not re.match(r"^[a-zA-Z]{2,4}(\+[a-zA-Z]{2,4})*$", language):
+        language = "eng"
+
     ocrmypdf_bin = shutil.which("ocrmypdf")
     doc = pymupdf.open(str(file_path))
     total_pages = len(doc)

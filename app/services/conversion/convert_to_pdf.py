@@ -1,4 +1,5 @@
 import io
+import re
 import shutil
 import tempfile
 import logging
@@ -11,7 +12,9 @@ from reportlab.pdfgen import canvas
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from app.core.security import run_safe_command
+import html as html_module
+from app.core.security import run_safe_command, sanitize_html_content, is_safe_url
+from app.utils.file_utils import validate_zip_bomb
 
 logger = logging.getLogger("foldora.conversion.to_pdf")
 
@@ -30,55 +33,62 @@ def images_to_pdf(
     doc = pymupdf.open()
 
     for img_path in image_paths:
-        with Image.open(img_path) as pil_img:
-            # Handle orientation from EXIF
-            pil_img = ImageOps.exif_transpose(pil_img)
-            w_px, h_px = pil_img.size
+        try:
+            with Image.open(img_path) as pil_img:
+                # Handle orientation from EXIF
+                pil_img = ImageOps.exif_transpose(pil_img)
+                w_px, h_px = pil_img.size
+        except Image.DecompressionBombError as d_err:
+            doc.close()
+            raise ValueError(f"Image decompression bomb detected in '{img_path.name}': {d_err}")
+        except Exception as e:
+            doc.close()
+            raise ValueError(f"Failed to open image '{img_path.name}': {e}")
 
-            # Determine page size in points (72 pt per inch)
-            if orientation == "portrait":
-                page_w, page_h = 595.0, 842.0  # A4
-            elif orientation == "landscape":
+        # Determine page size in points (72 pt per inch)
+        if orientation == "portrait":
+            page_w, page_h = 595.0, 842.0  # A4
+        elif orientation == "landscape":
+            page_w, page_h = 842.0, 595.0
+        else:  # auto
+            if w_px > h_px:
                 page_w, page_h = 842.0, 595.0
-            else:  # auto
-                if w_px > h_px:
-                    page_w, page_h = 842.0, 595.0
-                else:
-                    page_w, page_h = 595.0, 842.0
-
-            # Calculate fitted rect
-            avail_w = page_w - (2 * margin_pt)
-            avail_h = page_h - (2 * margin_pt)
-
-            img_aspect = w_px / max(1, h_px)
-            avail_aspect = avail_w / max(1, avail_h)
-
-            if fit_to_page:
-                if img_aspect > avail_aspect:
-                    draw_w = avail_w
-                    draw_h = avail_w / img_aspect
-                else:
-                    draw_h = avail_h
-                    draw_w = avail_h * img_aspect
             else:
-                draw_w = min(avail_w, float(w_px))
-                draw_h = min(avail_h, float(h_px))
+                page_w, page_h = 595.0, 842.0
 
-            x0 = margin_pt + (avail_w - draw_w) / 2
-            y0 = margin_pt + (avail_h - draw_h) / 2
-            rect = pymupdf.Rect(x0, y0, x0 + draw_w, y0 + draw_h)
+        # Calculate fitted rect
+        avail_w = page_w - (2 * margin_pt)
+        avail_h = page_h - (2 * margin_pt)
 
-            # Insert new page
-            page = doc.new_page(width=page_w, height=page_h)
+        img_aspect = w_px / max(1, h_px)
+        avail_aspect = avail_w / max(1, avail_h)
 
-            # Convert to temporary JPEG/PNG bytes for insertion
-            buf = io.BytesIO()
-            if pil_img.mode in ("RGBA", "LA") or (pil_img.mode == "P" and "transparency" in pil_img.info):
-                pil_img.save(buf, format="PNG")
+        if fit_to_page:
+            if img_aspect > avail_aspect:
+                draw_w = avail_w
+                draw_h = avail_w / img_aspect
             else:
-                rgb_img = pil_img.convert("RGB")
-                rgb_img.save(buf, format="JPEG", quality=92)
-            page.insert_image(rect, stream=buf.getvalue())
+                draw_h = avail_h
+                draw_w = avail_h * img_aspect
+        else:
+            draw_w = min(avail_w, float(w_px))
+            draw_h = min(avail_h, float(h_px))
+
+        x0 = margin_pt + (avail_w - draw_w) / 2
+        y0 = margin_pt + (avail_h - draw_h) / 2
+        rect = pymupdf.Rect(x0, y0, x0 + draw_w, y0 + draw_h)
+
+        # Insert new page
+        page = doc.new_page(width=page_w, height=page_h)
+
+        # Convert to temporary JPEG/PNG bytes for insertion
+        buf = io.BytesIO()
+        if pil_img.mode in ("RGBA", "LA") or (pil_img.mode == "P" and "transparency" in pil_img.info):
+            pil_img.save(buf, format="PNG")
+        else:
+            rgb_img = pil_img.convert("RGB")
+            rgb_img.save(buf, format="JPEG", quality=92)
+        page.insert_image(rect, stream=buf.getvalue())
 
     doc.save(str(output_path), deflate=True)
     doc.close()
@@ -121,6 +131,9 @@ def office_to_pdf(file_path: Path, output_path: Path) -> Path:
     Convert Word (.doc/.docx), PowerPoint (.ppt/.pptx), or Excel (.xls/.xlsx) to PDF.
     Uses headless LibreOffice with isolated profile, or pure-Python document parsers fallback.
     """
+    # Guard against decompression bomb payloads in office files
+    validate_zip_bomb(file_path)
+
     libreoffice_bin = shutil.which("libreoffice") or shutil.which("soffice")
 
     if libreoffice_bin:
@@ -129,6 +142,10 @@ def office_to_pdf(file_path: Path, output_path: Path) -> Path:
             cmd = [
                 libreoffice_bin,
                 "--headless",
+                "--norestore",
+                "--nofirststartwizard",
+                "--nologo",
+                "--nodefault",
                 f"-env:UserInstallation=file:///{prof_dir.replace(chr(92), '/')}",
                 "--convert-to", "pdf",
                 "--outdir", str(out_dir),
@@ -174,23 +191,24 @@ def _word_to_pdf_fallback(docx_path: Path, output_path: Path) -> Path:
         if not text:
             story.append(Spacer(1, 8))
             continue
+        safe_text = html_module.escape(text)
         # Check heading style
         style_name = para.style.name.lower()
         if "heading 1" in style_name:
-            story.append(Paragraph(text, styles['Heading1']))
+            story.append(Paragraph(safe_text, styles['Heading1']))
         elif "heading 2" in style_name:
-            story.append(Paragraph(text, styles['Heading2']))
+            story.append(Paragraph(safe_text, styles['Heading2']))
         elif "heading 3" in style_name:
-            story.append(Paragraph(text, styles['Heading3']))
+            story.append(Paragraph(safe_text, styles['Heading3']))
         else:
-            story.append(Paragraph(text, styles['Normal']))
+            story.append(Paragraph(safe_text, styles['Normal']))
         story.append(Spacer(1, 4))
 
     # Also extract tables
     for table in doc.tables:
         table_data = []
         for row in table.rows:
-            table_data.append([cell.text.strip() for cell in row.cells])
+            table_data.append([html_module.escape(cell.text.strip()) for cell in row.cells])
         if table_data:
             rl_table = Table(table_data)
             rl_table.setStyle(TableStyle([
@@ -219,13 +237,14 @@ def _excel_to_pdf_fallback(xlsx_path: Path, output_path: Path) -> Path:
 
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
-        story.append(Paragraph(f"<b>Sheet: {sheet_name}</b>", styles['Heading2']))
+        safe_sheet = html_module.escape(sheet_name)
+        story.append(Paragraph(f"<b>Sheet: {safe_sheet}</b>", styles['Heading2']))
         story.append(Spacer(1, 8))
 
         data = []
         for row in ws.iter_rows(values_only=True):
             if any(cell is not None for cell in row):
-                row_str = [str(c) if c is not None else "" for c in row]
+                row_str = [html_module.escape(str(c)) if c is not None else "" for c in row]
                 data.append(row_str[:12])  # Bounded column width
 
         if data:
@@ -268,7 +287,7 @@ def _powerpoint_to_pdf_fallback(pptx_path: Path, output_path: Path) -> Path:
         story.append(Paragraph(f"<b>{title}</b>", styles['Heading1']))
         story.append(Spacer(1, 12))
         for line in slide_texts:
-            story.append(Paragraph(line, styles['Normal']))
+            story.append(Paragraph(html_module.escape(line), styles['Normal']))
             story.append(Spacer(1, 6))
 
         story.append(Spacer(1, 30))
@@ -316,21 +335,24 @@ def markdown_to_pdf(file_path: Path, output_path: Path) -> Path:
     styles = getSampleStyleSheet()
     story = []
 
+    def _rl_escape(s: str) -> str:
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
     for line in text.split("\n"):
         line_s = line.strip()
         if not line_s:
             story.append(Spacer(1, 6))
             continue
         if line_s.startswith("# "):
-            story.append(Paragraph(f"<b>{line_s[2:]}</b>", styles['Heading1']))
+            story.append(Paragraph(f"<b>{_rl_escape(line_s[2:])}</b>", styles['Heading1']))
         elif line_s.startswith("## "):
-            story.append(Paragraph(f"<b>{line_s[3:]}</b>", styles['Heading2']))
+            story.append(Paragraph(f"<b>{_rl_escape(line_s[3:])}</b>", styles['Heading2']))
         elif line_s.startswith("### "):
-            story.append(Paragraph(f"<b>{line_s[4:]}</b>", styles['Heading3']))
+            story.append(Paragraph(f"<b>{_rl_escape(line_s[4:])}</b>", styles['Heading3']))
         elif line_s.startswith("- ") or line_s.startswith("* "):
-            story.append(Paragraph(f"• {line_s[2:]}", styles['Normal']))
+            story.append(Paragraph(f"• {_rl_escape(line_s[2:])}", styles['Normal']))
         else:
-            story.append(Paragraph(line_s, styles['Normal']))
+            story.append(Paragraph(_rl_escape(line_s), styles['Normal']))
         story.append(Spacer(1, 4))
 
     doc_template.build(story)
@@ -342,14 +364,41 @@ def html_to_pdf(file_path: Path, output_path: Path) -> Path:
     with open(file_path, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
 
-    # Block security hazards
-    low = content.lower()
-    if "file://" in low or "127.0.0.1" in low or "localhost" in low or "169.254" in low:
+    # Sanitize HTML content: strip scripts, iframes, XXE, prohibited schemes
+    clean_content = sanitize_html_content(content)
+
+    # Find all referenced URLs in HTML tags and CSS
+    url_pattern = re.compile(
+        r'(?:href|src|xlink:href)\s*=\s*["\']([^"\'>\s]+)["\']|url\(\s*["\']?([^"\'\)\s]+)["\']?\s*\)',
+        re.IGNORECASE
+    )
+    for match in url_pattern.finditer(clean_content):
+        url = (match.group(1) or match.group(2) or "").strip()
+        if not url:
+            continue
+        # Allow safe inline image data URIs
+        if url.startswith("data:image/"):
+            continue
+        # Block relative file paths that look like system paths or traversal
+        if url.startswith("/") or url.startswith("\\") or ".." in url:
+            raise ValueError(f"HTML references prohibited local path: {url}")
+        # Disallow prohibited schemes
+        if ":" in url and not url.lower().startswith(("http://", "https://")):
+            raise ValueError(f"HTML references prohibited URL scheme: {url}")
+        # If it's http/https, validate against SSRF
+        if url.lower().startswith(("http://", "https://")):
+            safe, reason = is_safe_url(url)
+            if not safe:
+                raise ValueError(f"HTML references prohibited unsafe URL: {url} ({reason})")
+
+    # Extra defense-in-depth string check for common SSRF/local file targets
+    low = clean_content.lower()
+    if any(h in low for h in ("file://", "gopher://", "169.254.169.254", "metadata.google.internal", "localhost", "127.0.0.1")):
         raise ValueError("HTML contains prohibited local resource or private network references")
 
-    # Use PyMuPDF Story / HTML rendering
+    # Use PyMuPDF Story with an empty isolated Archive to prevent local filesystem reads
     doc = pymupdf.open()
-    story = pymupdf.Story(content)
+    story = pymupdf.Story(clean_content, archive=pymupdf.Archive())
     writer = pymupdf.DocumentWriter(str(output_path))
     more = 1
     while more:

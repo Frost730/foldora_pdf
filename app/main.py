@@ -45,12 +45,13 @@ app = FastAPI(
 # Compression Middleware: compress responses >= 500 bytes (JSON, HTML, SVG, JS, CSS)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-# CORS
+# CORS: Wildcard origins must disallow credentials to avoid credential leakage and browser rejections
+has_wildcard_origin = "*" in settings.CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=not has_wildcard_origin,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -65,6 +66,22 @@ async def add_security_and_cache_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["X-XSS-Protection"] = "0"
+    if "Content-Security-Policy" not in response.headers:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "connect-src 'self'; "
+            "font-src 'self' data:; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+            "frame-ancestors 'none';"
+        )
+    if not settings.DEBUG:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
     # Caching strategy: immutable long-term caching for hashed assets, fresh for HTML
     path = request.url.path
@@ -98,9 +115,16 @@ if frontend_dist.exists() and (frontend_dist / "index.html").exists():
         if full_path.startswith("api/") or full_path == "healthz":
             return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
-        target_file = frontend_dist / full_path
-        if target_file.exists() and target_file.is_file():
-            return FileResponse(target_file)
+        # Strictly contain static file serving inside frontend_dist
+        try:
+            dist_resolved = frontend_dist.resolve()
+            target_file = (frontend_dist / full_path).resolve()
+            if not target_file.is_relative_to(dist_resolved):
+                return JSONResponse(status_code=404, content={"detail": "Not Found"})
+            if target_file.exists() and target_file.is_file():
+                return FileResponse(target_file)
+        except Exception:
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
         return FileResponse(frontend_dist / "index.html")
 else:

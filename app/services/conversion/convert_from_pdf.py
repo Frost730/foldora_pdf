@@ -234,14 +234,17 @@ def pdf_to_txt(file_path: Path, output_path: Path) -> Path:
 
 
 def pdf_to_html(file_path: Path, output_path: Path) -> Path:
-    """Convert PDF content into accessible HTML5 markup."""
+    """Convert PDF content into accessible HTML5 markup with sandboxed CSP."""
+    import html as html_module
     doc = pymupdf.open(str(file_path))
+    safe_title = html_module.escape(file_path.stem)
     html_parts = [
         "<!DOCTYPE html>",
         "<html lang=\"en\">",
         "<head>",
         "<meta charset=\"UTF-8\">",
-        f"<title>{file_path.stem}</title>",
+        "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; img-src data:;\">",
+        f"<title>{safe_title}</title>",
         "<style>",
         "body { font-family: system-ui, -apple-system, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; padding: 24px; }",
         ".page-container { max-width: 800px; margin: 0 auto 32px auto; background: #fff; padding: 48px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }",
