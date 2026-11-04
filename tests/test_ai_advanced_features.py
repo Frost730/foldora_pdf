@@ -189,3 +189,91 @@ def test_summarize_pdf_alias_in_tool_registry():
     assert t1 is not None
     assert t2 is not None
     assert t1.id == t2.id
+
+
+@pytest.mark.anyio
+async def test_ask_pdf_numeric_and_date_queries():
+    with tempfile.TemporaryDirectory() as td:
+        pdf_path = Path(td) / "rich_doc.pdf"
+        create_rich_sample_pdf(pdf_path)
+
+        # Date query
+        res_date = await ai_service.ask_pdf(pdf_path, "What happened on 2026-04-15?")
+        assert res_date["confidence"] >= 0.70
+        assert any(c["page"] == 1 for c in res_date["citations_detail"])
+        assert "Page 1" in res_date["citations"]
+
+        # Number and code query
+        res_num = await ai_service.ask_pdf(pdf_path, "What is invoice 9042?")
+        assert res_num["confidence"] >= 0.70
+        assert any(c["page"] == 1 for c in res_num["citations_detail"])
+
+
+@pytest.mark.anyio
+async def test_extract_structured_data_formats_and_order():
+    with tempfile.TemporaryDirectory() as td:
+        pdf_path = Path(td) / "rich_doc.pdf"
+        create_rich_sample_pdf(pdf_path)
+
+        # 1. Test CSV format prioritized
+        job1 = job_manager.create_job(tool_id="extract-structured-data", options={"schema": "invoices", "format": "csv"})
+        from app.utils.file_utils import get_job_dir
+        import shutil
+        job1_dir = get_job_dir(job1.id)
+        dest1 = job1_dir / "f_0_rich_doc.pdf"
+        shutil.copy2(str(pdf_path), str(dest1))
+        job1.input_files = [FileInfo(
+            file_id=dest1.name,
+            original_name=pdf_path.name,
+            size_bytes=dest1.stat().st_size,
+            content_type="application/pdf"
+        )]
+        job_manager.update_job(job1.id)
+
+        await execute_job(job1.id)
+        job1_completed = job_manager.get_job(job1.id)
+        assert job1_completed.status.value == "completed"
+        assert len(job1_completed.output_files) >= 2
+        # First file must be the CSV
+        assert job1_completed.output_files[0].filename == "structured_data.csv"
+        csv_disk = job1_dir / "structured_data.csv"
+        assert csv_disk.exists()
+        csv_text = csv_disk.read_text(encoding="utf-8")
+        assert "Invoice Number" in csv_text or "INV-2026-9042" in csv_text
+
+        # 2. Test Markdown format prioritized
+        job2 = job_manager.create_job(tool_id="extract-structured-data", options={"schema": "legal", "format": "markdown"})
+        job2_dir = get_job_dir(job2.id)
+        dest2 = job2_dir / "f_0_rich_doc.pdf"
+        shutil.copy2(str(pdf_path), str(dest2))
+        job2.input_files = [FileInfo(
+            file_id=dest2.name,
+            original_name=pdf_path.name,
+            size_bytes=dest2.stat().st_size,
+            content_type="application/pdf"
+        )]
+        job_manager.update_job(job2.id)
+
+        await execute_job(job2.id)
+        job2_completed = job_manager.get_job(job2.id)
+        assert job2_completed.status.value == "completed"
+        # First file must be Markdown
+        assert job2_completed.output_files[0].filename == "structured_data.md"
+
+
+@pytest.mark.anyio
+async def test_extract_and_translate_scanned_safety():
+    with tempfile.TemporaryDirectory() as td:
+        pdf_path = Path(td) / "scanned.pdf"
+        create_scanned_pdf(pdf_path)
+
+        out_json = Path(td) / "scanned_struct.json"
+        res = ai_service.extract_structured_data(pdf_path, out_json, schema="legal")
+        assert res["schema_data"]["parties_detected"] == []
+        assert res["schema_data"]["governing_law_jurisdiction"] == "Not Specified"
+
+        out_txt = Path(td) / "scanned_trans.txt"
+        trans_res = await ai_service.translate_pdf_text(pdf_path, out_txt, target_language="es")
+        assert out_txt.exists()
+        assert "scanned" in out_txt.read_text(encoding="utf-8").lower() or "ocr" in out_txt.read_text(encoding="utf-8").lower()
+
