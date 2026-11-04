@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Trash2, ArrowUp, ArrowDown, Eye } from 'lucide-react';
+import { FileText, Trash2, ArrowUp, ArrowDown, Eye, PenTool } from 'lucide-react';
 import { formatBytes } from '../../services/api';
 
 interface FileListProps {
@@ -8,6 +8,7 @@ interface FileListProps {
   onMoveUp?: (index: number) => void;
   onMoveDown?: (index: number) => void;
   onPreview?: (file: File) => void;
+  onOpenVisual?: (file: File, index: number) => void;
   allowReorder?: boolean;
 }
 
@@ -17,6 +18,7 @@ export const FileList: React.FC<FileListProps> = ({
   onMoveUp,
   onMoveDown,
   onPreview,
+  onOpenVisual,
   allowReorder = false,
 }) => {
   if (!files.length) return null;
@@ -46,7 +48,19 @@ export const FileList: React.FC<FileListProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {onOpenVisual && file.name.toLowerCase().endsWith('.pdf') && (
+                <button
+                  type="button"
+                  onClick={() => onOpenVisual(file, idx)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#12151c] bg-[#c9f227] hover:bg-[#b8e21a] rounded-lg transition-all shadow-xs cursor-pointer"
+                  title="Open this PDF directly in the Visual Canvas Editor"
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Visual Editor</span>
+                </button>
+              )}
+
               {onPreview && file.name.toLowerCase().endsWith('.pdf') && (
                 <button
                   type="button"

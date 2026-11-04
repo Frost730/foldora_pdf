@@ -25,7 +25,7 @@ import { JobProgress } from '../components/workspace/JobProgress';
 import { ResultPanel } from '../components/workspace/ResultPanel';
 import { PreviewModal } from '../components/workspace/PreviewModal';
 import { canRunClientSide, executeClientSidePdf } from '../services/clientPdf';
-import { ArrowLeft, Play, ShieldAlert, Sparkles, AlertCircle, Zap } from 'lucide-react';
+import { ArrowLeft, Play, ShieldAlert, Sparkles, AlertCircle, Zap, PenTool, Sliders } from 'lucide-react';
 
 
 
@@ -162,6 +162,23 @@ export const ToolWorkspacePage: React.FC = () => {
         else if (toolId === 'translate-pdf') setOptions({ language: 'es' });
 
         else setOptions({});
+
+        const primaryVisualTools = [
+          'edit-pdf',
+          'draw-freehand',
+          'add-text',
+          'create-signature',
+          'sign-pdf',
+          'annotate-pdf',
+          'add-shapes',
+          'highlight-text',
+          'underline-strikethrough',
+        ];
+        if (primaryVisualTools.includes(toolId)) {
+          setEditorMode('visual');
+        } else {
+          setEditorMode('form');
+        }
 
         setLoadingTool(false);
 
@@ -416,6 +433,8 @@ export const ToolWorkspacePage: React.FC = () => {
 
   const isOrganizePageTool = tool.id === 'organize-pdf';
 
+  const isPdfSingleFile = files.length === 1 && (files[0].name || '').toLowerCase().endsWith('.pdf');
+
   const isVisualEditorTool = [
     'edit-pdf',
     'edit-text',
@@ -432,7 +451,18 @@ export const ToolWorkspacePage: React.FC = () => {
     'highlight-text',
     'underline-strikethrough',
     'add-stamp',
-  ].includes(tool.id);
+    'redact-pdf',
+    'add-watermark',
+    'add-header-footer',
+    'crop-pdf',
+    'crop-margins',
+    'add-page-numbers',
+    'flatten-pdf',
+    'flatten-form',
+    'protect-pdf',
+    'unlock-pdf',
+    'compress-pdf',
+  ].includes(tool.id) || isPdfSingleFile;
 
 
 
@@ -553,9 +583,9 @@ export const ToolWorkspacePage: React.FC = () => {
 
             <div className="space-y-4">
 
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-2 bg-[#f8fafc] border border-[#e2e8f0] rounded-2xl shadow-xs">
 
-                <div className="flex items-center gap-1.5 p-1 bg-[#f1f1ec] border border-[#e3e3dc] rounded-xl">
+                <div className="flex items-center gap-1.5 p-1 bg-white border border-[#e2e8f0] rounded-xl shadow-xs">
 
                   <button
 
@@ -563,19 +593,21 @@ export const ToolWorkspacePage: React.FC = () => {
 
                     onClick={() => setEditorMode('visual')}
 
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
 
                       editorMode === 'visual'
 
-                        ? 'bg-[#12151c] text-[#c9f227] shadow-xs'
+                        ? 'bg-[#12151c] text-[#c9f227] shadow-sm'
 
-                        : 'text-[#64748b] hover:text-[#12151c]'
+                        : 'text-[#64748b] hover:text-[#12151c] hover:bg-[#f1f5f9]'
 
                     }`}
 
                   >
 
-                    Visual Canvas Editor
+                    <PenTool className="w-3.5 h-3.5" />
+
+                    <span>Visual Canvas Editor</span>
 
                   </button>
 
@@ -585,11 +617,11 @@ export const ToolWorkspacePage: React.FC = () => {
 
                     onClick={() => setEditorMode('form')}
 
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
 
                       editorMode === 'form'
 
-                        ? 'bg-[#12151c] text-[#c9f227] shadow-xs'
+                        ? 'bg-[#12151c] text-[#c9f227] shadow-sm'
 
                         : 'text-[#64748b] hover:text-[#12151c]'
 
@@ -597,7 +629,9 @@ export const ToolWorkspacePage: React.FC = () => {
 
                   >
 
-                    Quick Options Form
+                    <Sliders className="w-3.5 h-3.5" />
+
+                    <span>Quick Options Form</span>
 
                   </button>
 
@@ -605,19 +639,29 @@ export const ToolWorkspacePage: React.FC = () => {
 
 
 
-                <button
+                <div className="flex items-center gap-3 px-2">
 
-                  type="button"
+                  <span className="text-[11px] text-[#64748b] font-medium hidden md:inline">
 
-                  onClick={() => setFiles([])}
+                    {editorMode === 'visual' ? '🎨 Click canvas to edit text, sign & draw' : '⚙️ Quick parameter configuration'}
 
-                  className="text-xs text-[#ef4444] hover:underline cursor-pointer"
+                  </span>
 
-                >
+                  <button
 
-                  Change Document
+                    type="button"
 
-                </button>
+                    onClick={() => setFiles([])}
+
+                    className="text-xs text-[#ef4444] hover:underline cursor-pointer font-medium"
+
+                  >
+
+                    Change Document
+
+                  </button>
+
+                </div>
 
               </div>
 
@@ -650,6 +694,8 @@ export const ToolWorkspacePage: React.FC = () => {
                     onMoveDown={handleMoveDown}
 
                     onPreview={(f) => setPreviewFile(f)}
+
+                    onOpenVisual={() => setEditorMode('visual')}
 
                     allowReorder={tool.max_files > 1}
 
@@ -694,6 +740,8 @@ export const ToolWorkspacePage: React.FC = () => {
                 onMoveDown={handleMoveDown}
 
                 onPreview={(f) => setPreviewFile(f)}
+
+                onOpenVisual={files.length > 0 && (files[0].name || '').toLowerCase().endsWith('.pdf') ? () => setEditorMode('visual') : undefined}
 
                 allowReorder={tool.max_files > 1}
 
