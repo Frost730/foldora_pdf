@@ -107,7 +107,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
             onClick={() => setMobileMenuOpen(false)}
             className="block px-3 py-2 rounded-lg text-base font-medium text-[#12151c] hover:bg-[#f1f1ec]"
           >
-            All Tools Catalogue (64)
+            All Tools Catalogue (65)
           </Link>
           <Link
             to="/tools?category=organize"
