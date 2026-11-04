@@ -139,3 +139,16 @@ export async function fetchPdfInfo(file: File): Promise<{ total_pages: number; i
   if (!res.ok) throw new Error('Could not inspect PDF metadata');
   return res.json();
 }
+
+export async function fetchSuggestedQuestions(file: File): Promise<string[]> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/ai/suggest-questions`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) return [];
+  const data = await res.json().catch(() => ({}));
+  return data.suggested_questions || [];
+}
+

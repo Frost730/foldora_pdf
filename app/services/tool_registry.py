@@ -696,6 +696,8 @@ TOOLS_BY_ID: Dict[str, ToolDefinition] = {t.id: t for t in ALL_TOOLS}
 def get_tool(tool_id: str) -> Optional[ToolDefinition]:
     if tool_id == "edit-text":
         return TOOLS_BY_ID.get("edit-pdf")
+    if tool_id == "summarize-pdf":
+        return TOOLS_BY_ID.get("pdf-summarizer")
     return TOOLS_BY_ID.get(tool_id)
 
 

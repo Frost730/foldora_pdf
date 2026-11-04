@@ -464,3 +464,52 @@ async def get_pdf_info(file: UploadFile = File(...)):
     except Exception as exc:
         free_memory()
         raise HTTPException(status_code=400, detail=f"Could not read PDF: {str(exc)}")
+
+
+@router.post("/ai/suggest-questions")
+async def api_suggest_questions(file: UploadFile = File(...)):
+    """Fast semantic suggestion generator for uploaded PDFs."""
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    buffer = bytearray()
+    while chunk := await file.read(256 * 1024):
+        buffer.extend(chunk)
+        if len(buffer) > settings.max_upload_bytes:
+            raise HTTPException(status_code=413, detail="File too large")
+
+    content = bytes(buffer)
+    if not content.startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="Invalid PDF format")
+
+    try:
+        doc = pymupdf.open(stream=content, filetype="pdf")
+        pages_data = []
+        for i in range(min(15, len(doc))):
+            text = doc[i].get_text("text").strip()
+            headings = []
+            for line in text.splitlines():
+                line_str = line.strip()
+                if 4 <= len(line_str) <= 70 and not line_str.endswith("."):
+                    if line_str.isupper() or line_str.istitle():
+                        headings.append(line_str)
+            pages_data.append({
+                "page": i + 1,
+                "text": text[:10000],
+                "headings": headings[:6]
+            })
+        doc.close()
+        del content
+        free_memory()
+
+        from app.services.ai.ai_service import generate_suggested_questions
+        questions = generate_suggested_questions(pages_data, count=5)
+        return {"suggested_questions": questions}
+    except Exception as exc:
+        free_memory()
+        logger.warning("Error generating suggested questions: %s", exc)
+        return {"suggested_questions": [
+            "What is the executive summary and main objective of this document?",
+            "What are the critical dates, deadlines, or milestones mentioned?",
+            "What are the primary recommendations, action items, or next steps?"
+        ]}
