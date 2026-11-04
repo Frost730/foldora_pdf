@@ -23,10 +23,10 @@ import { PageOrganizer } from '../components/workspace/PageOrganizer';
 import { JobProgress } from '../components/workspace/JobProgress';
 
 import { ResultPanel } from '../components/workspace/ResultPanel';
-
 import { PreviewModal } from '../components/workspace/PreviewModal';
+import { canRunClientSide, executeClientSidePdf } from '../services/clientPdf';
+import { ArrowLeft, Play, ShieldAlert, Sparkles, AlertCircle, Zap } from 'lucide-react';
 
-import { ArrowLeft, Play, ShieldAlert, Sparkles, AlertCircle } from 'lucide-react';
 
 
 
@@ -63,6 +63,7 @@ export const ToolWorkspacePage: React.FC = () => {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [editorMode, setEditorMode] = useState<'visual' | 'form'>('visual');
+  const [preferClientProcessing, setPreferClientProcessing] = useState<boolean>(true);
 
 
 
@@ -281,40 +282,37 @@ export const ToolWorkspacePage: React.FC = () => {
 
 
   const handleExecute = async () => {
-
     if (!tool || !files.length) return;
-
     setIsProcessing(true);
-
     setActionError(null);
 
-
-
-    try {
-
-      const { job_id } = await createJob(tool.id, files, options);
-
-      // Poll until done
-
-      const completedJob = await pollJob(job_id, (updated) => {
-
-        setJob(updated);
-
-      });
-
-      setJob(completedJob);
-
-    } catch (err: any) {
-
-      setActionError(err.message || 'Operation failed');
-
-    } finally {
-
-      setIsProcessing(false);
-
+    // Hybrid Client-Side Browser Execution (0 MB Server RAM, instantaneous)
+    if (tool && canRunClientSide(tool.id) && preferClientProcessing) {
+      try {
+        const clientJob = await executeClientSidePdf(tool.id, files, options);
+        setJob(clientJob);
+        setIsProcessing(false);
+        return;
+      } catch (clientErr: any) {
+        console.warn('Client-side processing fallback to server:', clientErr);
+        // Seamless fallback to server below
+      }
     }
 
+    try {
+      const { job_id } = await createJob(tool.id, files, options);
+      // Poll until done
+      const completedJob = await pollJob(job_id, (updated) => {
+        setJob(updated);
+      });
+      setJob(completedJob);
+    } catch (err: any) {
+      setActionError(err.message || 'Operation failed');
+    } finally {
+      setIsProcessing(false);
+    }
   };
+
 
 
 
@@ -481,10 +479,9 @@ export const ToolWorkspacePage: React.FC = () => {
       {/* Main Workspace Body */}
 
       {job && (job.status === 'completed' || job.status === 'failed') ? (
-
-        <ResultPanel job={job} onReset={handleReset} onDelete={handleDeleteStorage} />
-
+        <ResultPanel job={job} files={files} onReset={handleReset} onDelete={handleDeleteStorage} />
       ) : isProcessing ? (
+
 
         <JobProgress
 
@@ -721,16 +718,36 @@ export const ToolWorkspacePage: React.FC = () => {
 
 
           {/* Execute Primary CTA Button */}
-
           {files.length > 0 && (!isVisualEditorTool || editorMode === 'form') && (
+            <div className="space-y-4 pt-4 border-t border-[#e3e3dc]">
+              {tool && canRunClientSide(tool.id) && (
+                <div className="flex items-center justify-between p-3.5 bg-[#f0fdf4] border border-[#bbf7d0] rounded-xl text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <Zap className="w-4 h-4 text-[#16a34a] shrink-0" />
+                    <div>
+                      <span className="font-bold text-[#14532d]">Instant Client-Side Processing</span>
+                      <p className="text-[11px] text-[#166534]">
+                        Runs 100% in your browser. 0 MB server RAM footprint, ultra-private & instant.
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={preferClientProcessing}
+                      onChange={(e) => setPreferClientProcessing(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-[#cbd5e1] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#16a34a]"></div>
+                  </label>
+                </div>
+              )}
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#e3e3dc]">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <span className="text-xs text-[#64748b]">
+                  {files.length} document{files.length > 1 ? 's' : ''} staged for {tool.name}
+                </span>
 
-              <span className="text-xs text-[#64748b]">
-
-                {files.length} document{files.length > 1 ? 's' : ''} staged for {tool.name}
-
-              </span>
 
 
 
@@ -745,14 +762,12 @@ export const ToolWorkspacePage: React.FC = () => {
               >
 
                 <Play className="w-4 h-4 fill-[#c9f227]" />
-
                 <span>Execute {tool.name}</span>
-
               </button>
-
             </div>
+          </div>
+        )}
 
-          )}
 
         </div>
 

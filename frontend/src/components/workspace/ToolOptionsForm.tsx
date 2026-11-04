@@ -1,6 +1,8 @@
 import React from 'react';
 import { fetchSuggestedQuestions } from '../../services/api';
+import { OcrPreprocessor } from './OcrPreprocessor';
 import { Sparkles, AlertCircle, Trash2, FileOutput, Edit3, Type, Crop, Highlighter, Underline, Globe, Table, PenTool, Shield, CheckSquare, Layers, FileCheck, Search, Image as ImageIcon, Wrench, FileSpreadsheet, FileCode, CheckCircle2, Stamp, Calendar, Check, Info, Eye, EyeOff, Lock, Unlock, Copy, RefreshCw } from 'lucide-react';
+
 
 interface ToolOptionsFormProps {
   toolId: string;
@@ -966,7 +968,7 @@ export const ToolOptionsForm: React.FC<ToolOptionsFormProps> = ({
   // 14. OCR PDF
   if (toolId === 'ocr-pdf') {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-[#12151c] mb-1">OCR Language</label>
           <select
@@ -982,9 +984,16 @@ export const ToolOptionsForm: React.FC<ToolOptionsFormProps> = ({
             <option value="por">Portuguese (por)</option>
           </select>
         </div>
+
+        <OcrPreprocessor
+          file={file}
+          options={options}
+          onOptionsChange={onChange}
+        />
       </div>
     );
   }
+
 
   // 15. Highlight Text
   if (toolId === 'highlight-text') {

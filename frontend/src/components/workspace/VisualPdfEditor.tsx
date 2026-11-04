@@ -27,7 +27,9 @@ import {
   Copy,
   Bold,
   Italic,
-  FileSignature
+  FileSignature,
+  CheckSquare,
+  FileText
 } from 'lucide-react';
 
 interface VisualPdfEditorProps {
@@ -47,7 +49,11 @@ type ActiveTool =
   | 'line'
   | 'arrow'
   | 'shape-rect'
-  | 'shape-circle';
+  | 'shape-circle'
+  | 'form-text'
+  | 'form-checkbox'
+  | 'form-signature';
+
 
 const COLOR_PRESETS = [
   '#111827', // Pitch Black
@@ -401,8 +407,57 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
       pushEdits([...edits, newShape]);
       setSelectedEditId(newShape.id);
       setActiveTool('select');
+    } else if (activeTool === 'form-text') {
+      const newField: VisualEditItem = {
+        id: `field_text_${Date.now()}`,
+        type: 'form_text',
+        page: currentPage,
+        x: ptX,
+        y: ptY,
+        w: 160,
+        h: 28,
+        name: `field_${edits.filter((e) => e.type === 'form_text').length + 1}`,
+        placeholder: 'Enter text...',
+        value: '',
+        is_required: false,
+      };
+      pushEdits([...edits, newField]);
+      setSelectedEditId(newField.id);
+      setActiveTool('select');
+    } else if (activeTool === 'form-checkbox') {
+      const newCheckbox: VisualEditItem = {
+        id: `field_check_${Date.now()}`,
+        type: 'form_checkbox',
+        page: currentPage,
+        x: ptX,
+        y: ptY,
+        w: 20,
+        h: 20,
+        name: `check_${edits.filter((e) => e.type === 'form_checkbox').length + 1}`,
+        checked: false,
+        is_required: false,
+      };
+      pushEdits([...edits, newCheckbox]);
+      setSelectedEditId(newCheckbox.id);
+      setActiveTool('select');
+    } else if (activeTool === 'form-signature') {
+      const newSig: VisualEditItem = {
+        id: `field_sig_${Date.now()}`,
+        type: 'form_signature',
+        page: currentPage,
+        x: ptX,
+        y: ptY,
+        w: 180,
+        h: 55,
+        name: `signature_${edits.filter((e) => e.type === 'form_signature').length + 1}`,
+        is_required: true,
+      };
+      pushEdits([...edits, newSig]);
+      setSelectedEditId(newSig.id);
+      setActiveTool('select');
     }
   };
+
 
   // 3. Freehand Drawing Handlers (Always preserve selected color!)
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -771,7 +826,45 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
             <ImageIcon className="w-3.5 h-3.5" />
             <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
           </label>
+
+          {/* Form Field Builder Tools */}
+          <div className="flex items-center gap-1 pl-1 border-l border-[#2b303c]">
+            <button
+              type="button"
+              onClick={() => setActiveTool('form-text')}
+              title="Add Interactive Text Field"
+              className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 text-xs ${
+                activeTool === 'form-text' ? 'bg-[#c9f227] text-[#12151c] font-bold' : 'text-[#94a3b8] hover:text-white'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline text-[11px]">Form Field</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTool('form-checkbox')}
+              title="Add Interactive Checkbox"
+              className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 text-xs ${
+                activeTool === 'form-checkbox' ? 'bg-[#c9f227] text-[#12151c] font-bold' : 'text-[#94a3b8] hover:text-white'
+              }`}
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline text-[11px]">Checkbox</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTool('form-signature')}
+              title="Add Signature Area"
+              className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 text-xs ${
+                activeTool === 'form-signature' ? 'bg-[#c9f227] text-[#12151c] font-bold' : 'text-[#94a3b8] hover:text-white'
+              }`}
+            >
+              <FileSignature className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline text-[11px]">Sign Area</span>
+            </button>
+          </div>
         </div>
+
 
         {/* Center Formatting & Undo/Redo Controls */}
         <div className="flex items-center gap-3">
@@ -852,6 +945,51 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
               >
                 BG
               </button>
+            </div>
+          )}
+
+          {/* Form Field Properties Inspector */}
+          {selectedItem && ['form_text', 'form_checkbox', 'form_signature'].includes(selectedItem.type) && (
+
+            <div className="flex items-center gap-1.5 bg-[#12151c] px-2 py-1 rounded-xl border border-[#2b303c] text-xs">
+              <span className="text-[10px] text-[#94a3b8] font-mono">Field:</span>
+              <input
+                type="text"
+                value={selectedItem.name || ''}
+                placeholder="Field Name"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEdits((prev) => prev.map((ed) => (ed.id === selectedItem.id ? { ...ed, name: val } : ed)));
+                }}
+                className="bg-[#1e2433] text-white px-2 py-0.5 rounded text-xs outline-none w-24 border border-[#384152]"
+              />
+              {selectedItem.type === 'form_text' && (
+                <>
+                  <span className="text-[10px] text-[#94a3b8] font-mono ml-1">Placeholder:</span>
+                  <input
+                    type="text"
+                    value={selectedItem.placeholder || ''}
+                    placeholder="Placeholder"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEdits((prev) => prev.map((ed) => (ed.id === selectedItem.id ? { ...ed, placeholder: val } : ed)));
+                    }}
+                    className="bg-[#1e2433] text-white px-2 py-0.5 rounded text-xs outline-none w-24 border border-[#384152]"
+                  />
+                </>
+              )}
+              <label className="flex items-center gap-1 text-[11px] text-[#94a3b8] cursor-pointer ml-1">
+                <input
+                  type="checkbox"
+                  checked={Boolean(selectedItem.is_required)}
+                  onChange={(e) => {
+                    const req = e.target.checked;
+                    setEdits((prev) => prev.map((ed) => (ed.id === selectedItem.id ? { ...ed, is_required: req } : ed)));
+                  }}
+                  className="rounded text-[#2563eb]"
+                />
+                <span>Required</span>
+              </label>
             </div>
           )}
 
@@ -1351,7 +1489,142 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
                   );
                 }
 
+                if (item.type === 'form_text') {
+                  const left = ((item.x || 0) / scaleX) * (zoom / 100);
+                  const top = ((item.y || 0) / scaleY) * (zoom / 100);
+                  const w = ((item.w || 160) / scaleX) * (zoom / 100);
+                  const h = ((item.h || 28) / scaleY) * (zoom / 100);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onMouseDown={(e) => startDrag(item.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEditId(item.id);
+                      }}
+                      style={{
+                        left: `${left}px`,
+                        top: `${top}px`,
+                        width: `${w}px`,
+                        height: `${h}px`,
+                      }}
+                      className={`absolute group bg-[#f8fafc] border border-[#94a3b8] rounded cursor-move flex items-center px-2 select-none shadow-xs transition-shadow ${
+                        isSelected ? 'ring-2 ring-[#c9f227] border-[#2563eb]' : 'hover:border-[#2563eb]'
+                      }`}
+                    >
+                      <div className="absolute -top-3.5 left-1 bg-[#2563eb] text-white text-[8px] font-mono font-bold px-1 rounded truncate max-w-[130px] shadow-xs">
+                        {item.name || 'field'} {item.is_required ? '*' : ''}
+                      </div>
+                      <input
+                        type="text"
+                        value={item.value || ''}
+                        placeholder={item.placeholder || 'Type here...'}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          const val = e.target.value;
+                          setEdits((prev) => prev.map((ed) => (ed.id === item.id ? { ...ed, value: val } : ed)));
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full bg-transparent text-xs text-[#1e293b] outline-none cursor-text"
+                      />
+                      {isSelected && (
+                        <div
+                          onMouseDown={(e) => startResize(item.id, e)}
+                          className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-[#2563eb] rounded-full cursor-nwse-resize"
+                        />
+                      )}
+                    </div>
+                  );
+                }
+
+                if (item.type === 'form_checkbox') {
+                  const left = ((item.x || 0) / scaleX) * (zoom / 100);
+                  const top = ((item.y || 0) / scaleY) * (zoom / 100);
+                  const w = ((item.w || 20) / scaleX) * (zoom / 100);
+                  const h = ((item.h || 20) / scaleY) * (zoom / 100);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onMouseDown={(e) => startDrag(item.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEditId(item.id);
+                      }}
+                      style={{
+                        left: `${left}px`,
+                        top: `${top}px`,
+                        width: `${w}px`,
+                        height: `${h}px`,
+                      }}
+                      className={`absolute group bg-white border-2 border-[#475569] rounded cursor-move flex items-center justify-center select-none shadow-xs ${
+                        isSelected ? 'ring-2 ring-[#c9f227] border-[#2563eb]' : 'hover:border-[#2563eb]'
+                      }`}
+                    >
+                      <div className="absolute -top-3.5 left-0 bg-[#475569] text-white text-[8px] font-mono font-bold px-1 rounded truncate max-w-[80px]">
+                        {item.name || 'check'}
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(item.checked)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          const chk = e.target.checked;
+                          setEdits((prev) => prev.map((ed) => (ed.id === item.id ? { ...ed, checked: chk } : ed)));
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-3.5 h-3.5 text-[#2563eb] rounded cursor-pointer"
+                      />
+                    </div>
+                  );
+                }
+
+                if (item.type === 'form_signature') {
+                  const left = ((item.x || 0) / scaleX) * (zoom / 100);
+                  const top = ((item.y || 0) / scaleY) * (zoom / 100);
+                  const w = ((item.w || 180) / scaleX) * (zoom / 100);
+                  const h = ((item.h || 55) / scaleY) * (zoom / 100);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onMouseDown={(e) => startDrag(item.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEditId(item.id);
+                      }}
+                      style={{
+                        left: `${left}px`,
+                        top: `${top}px`,
+                        width: `${w}px`,
+                        height: `${h}px`,
+                      }}
+                      className={`absolute group bg-[#eff6ff]/80 border border-dashed border-[#3b82f6] rounded-lg cursor-move flex flex-col justify-between p-1.5 select-none shadow-xs ${
+                        isSelected ? 'ring-2 ring-[#c9f227] border-[#2563eb]' : 'hover:border-[#2563eb]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] text-[#2563eb] font-semibold">
+                        <span className="flex items-center gap-1 font-mono text-[9px]">
+                          <FileSignature className="w-3 h-3" />
+                          <span>{item.name || 'signature'}</span>
+                        </span>
+                        <span className="text-[9px] text-[#3b82f6]/70">Sign Area</span>
+                      </div>
+                      <div className="border-b border-dashed border-[#94a3b8] w-full my-auto" />
+                      <span className="text-[8px] text-[#64748b] text-center font-mono">Sign Here &#x270d;</span>
+                      {isSelected && (
+                        <div
+                          onMouseDown={(e) => startResize(item.id, e)}
+                          className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-[#2563eb] rounded-full cursor-nwse-resize"
+                        />
+                      )}
+                    </div>
+                  );
+                }
+
                 return null;
+
               })}
 
               {/* SVG Overlay for Freehand Drawing Strokes (Always Uses Exact Color!) */}

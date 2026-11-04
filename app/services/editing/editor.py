@@ -620,6 +620,60 @@ def apply_visual_edits(
                     page.draw_rect(rect, color=stroke_c, fill=fill_c, width=sw)
                 applied_count += 1
 
+            elif itype in ["form_text", "form_textfield"]:
+                x = float(item.get("x", 72.0))
+                y = float(item.get("y", 72.0))
+                w = float(item.get("w", 160.0))
+                h = float(item.get("h", 28.0))
+                field_name = str(item.get("name") or f"text_{p_idx}_{applied_count}")
+                val = str(item.get("value") or item.get("default_value") or "")
+                
+                widget = pymupdf.Widget()
+                widget.rect = pymupdf.Rect(x, y, x + w, y + h)
+                widget.field_name = field_name
+                widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+                widget.field_value = val
+                widget.text_fontsize = float(item.get("size", 11.0))
+                widget.border_color = (0.7, 0.7, 0.7)
+                widget.fill_color = (0.97, 0.98, 0.99)
+                page.add_widget(widget)
+                applied_count += 1
+
+            elif itype == "form_checkbox":
+                x = float(item.get("x", 72.0))
+                y = float(item.get("y", 72.0))
+                w = float(item.get("w", 20.0))
+                h = float(item.get("h", 20.0))
+                field_name = str(item.get("name") or f"check_{p_idx}_{applied_count}")
+                checked = bool(item.get("checked") or item.get("value"))
+
+                widget = pymupdf.Widget()
+                widget.rect = pymupdf.Rect(x, y, x + w, y + h)
+                widget.field_name = field_name
+                widget.field_type = pymupdf.PDF_WIDGET_TYPE_CHECKBOX
+                widget.field_value = checked
+                widget.border_color = (0.3, 0.3, 0.3)
+                page.add_widget(widget)
+                applied_count += 1
+
+            elif itype == "form_signature":
+                x = float(item.get("x", 72.0))
+                y = float(item.get("y", 72.0))
+                w = float(item.get("w", 180.0))
+                h = float(item.get("h", 55.0))
+                field_name = str(item.get("name") or f"sig_{p_idx}_{applied_count}")
+
+                widget = pymupdf.Widget()
+                widget.rect = pymupdf.Rect(x, y, x + w, y + h)
+                widget.field_name = field_name
+                widget.field_type = pymupdf.PDF_WIDGET_TYPE_SIGNATURE
+                page.add_widget(widget)
+                # Draw subtle visual outline and indicator so form field is clear in all PDF viewers
+                page.draw_rect(widget.rect, color=(0.7, 0.7, 0.7), width=1.0)
+                page.insert_text(pymupdf.Point(x + 6, y + h - 8), "Sign Here \u270d", fontsize=9.0, color=(0.4, 0.4, 0.4))
+                applied_count += 1
+
+
     try:
         doc.save(str(output_path), garbage=3, deflate=True)
     except Exception:

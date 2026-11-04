@@ -12,7 +12,9 @@ def ocr_pdf(
     file_path: Path,
     output_path: Path,
     language: str = "eng",
-    force_ocr: bool = False
+    force_ocr: bool = False,
+    deskew: bool = False,
+    clean_scans: bool = False
 ) -> Dict[str, Any]:
     """
     Produce a searchable PDF by performing OCR on scanned pages.
@@ -45,6 +47,10 @@ def ocr_pdf(
             "--rotate-pages",
             "-l", language,
         ]
+        if deskew:
+            cmd.append("--deskew")
+        if clean_scans:
+            cmd.append("--clean")
         if not force_ocr:
             cmd.append("--skip-text")
         else:

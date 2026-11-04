@@ -99,7 +99,10 @@ export type VisualEditType =
   | 'whiteout'
   | 'highlight'
   | 'line'
-  | 'stamp';
+  | 'stamp'
+  | 'form_text'
+  | 'form_checkbox'
+  | 'form_signature';
 
 export interface VisualEditItem {
   id: string;
@@ -130,4 +133,10 @@ export interface VisualEditItem {
   stroke_color?: string;
   shape_type?: 'rect' | 'circle';
   fill_color?: string;
+  name?: string;
+  value?: string;
+  checked?: boolean;
+  placeholder?: string;
+  is_required?: boolean;
 }
+

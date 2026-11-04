@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Job } from '../../types';
 import { formatBytes } from '../../services/api';
+import { VisualDiffInspector } from './VisualDiffInspector';
 import {
   CheckCircle2,
   Download,
@@ -10,15 +11,18 @@ import {
   TrendingDown,
   ShieldCheck,
   AlertTriangle,
+  Zap,
 } from 'lucide-react';
 
 interface ResultPanelProps {
   job: Job;
+  files?: File[];
   onReset: () => void;
   onDelete: () => void;
 }
 
-export const ResultPanel: React.FC<ResultPanelProps> = ({ job, onReset, onDelete }) => {
+export const ResultPanel: React.FC<ResultPanelProps> = ({ job, files, onReset, onDelete }) => {
+
   const [purged, setPurged] = useState(false);
 
   const handlePurge = () => {
@@ -107,7 +111,40 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({ job, onReset, onDelete
         </div>
       )}
 
+      {/* Client-Side Processing Badge */}
+      {job.metadata?.client_processed && (
+        <div className="p-4 bg-[#f0fdf4] border border-[#bbf7d0] rounded-xl flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2.5">
+            <Zap className="w-5 h-5 text-[#16a34a]" />
+            <div>
+              <span className="font-bold text-[#14532d]">Instant Client-Side Execution</span>
+              <p className="text-[11px] text-[#166534]">
+                Processed 100% locally in your browser memory — 0 MB server footprint, total privacy.
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full font-bold text-[#16a34a] bg-white border border-[#bbf7d0] text-[11px]">
+            ⚡ 0ms Network Upload
+          </span>
+        </div>
+      )}
+
+      {/* Visual PDF Compare & Diff Inspector */}
+      {job.tool_id === 'compare-pdfs' && (
+        <VisualDiffInspector
+          files={files}
+          pageDiffs={job.metadata?.page_diffs}
+          diffLines={job.metadata?.diff_lines}
+          additions={job.metadata?.additions}
+          deletions={job.metadata?.deletions}
+          pageCount1={job.metadata?.page_count_file1}
+          pageCount2={job.metadata?.page_count_file2}
+          identical={job.metadata?.identical}
+        />
+      )}
+
       {/* AI Tools Rich Result Display */}
+
       {job.tool_id === 'ask-pdf' && job.metadata.answer && (
         <div className="p-5 bg-[#f8fafc] border border-[#e2e8f0] rounded-2xl space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">

@@ -271,18 +271,22 @@ async def execute_job(job_id: str) -> None:
 
 
         elif tool_id == "ocr-pdf":
-
             out_p = job_dir / "searchable_ocr_document.pdf"
-
             lang = opts.get("language", "eng")
-
             force = bool(opts.get("force_ocr", False))
-
-            ocr_res = ocr_service.ocr_pdf(input_paths[0], out_p, language=lang, force_ocr=force)
-
+            deskew = bool(opts.get("deskew", False))
+            clean_scans = bool(opts.get("clean_scans", False))
+            ocr_res = ocr_service.ocr_pdf(
+                input_paths[0],
+                out_p,
+                language=lang,
+                force_ocr=force,
+                deskew=deskew,
+                clean_scans=clean_scans
+            )
             meta_update.update(ocr_res)
-
             output_files.append(_make_output_file(job_id, job.download_token, out_p, "searchable_ocr_document.pdf", "application/pdf"))
+
 
 
 
@@ -749,14 +753,16 @@ async def execute_job(job_id: str) -> None:
 
 
         elif tool_id == "fill-form":
-
             out_p = job_dir / "filled_form.pdf"
-
             f_values = opts.get("fields", {})
-
+            if isinstance(f_values, str):
+                try:
+                    f_values = json.loads(f_values)
+                except Exception:
+                    f_values = {}
             editor.fill_form_fields(input_paths[0], out_p, f_values)
-
             output_files.append(_make_output_file(job_id, job.download_token, out_p, "filled_form.pdf", "application/pdf"))
+
 
 
 

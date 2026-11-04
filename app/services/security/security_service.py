@@ -193,14 +193,38 @@ def compare_pdfs(file1: Path, file2: Path, output_path: Path) -> Dict[str, Any]:
         else:
             f.write("No textual differences detected between the two documents.\n")
 
+    # Compute per-page breakdown
+    page_diffs = []
+    max_pages = max(pages1, pages2)
+    doc1_re = pymupdf.open(str(file1))
+    doc2_re = pymupdf.open(str(file2))
+    for p_no in range(max_pages):
+        t1 = doc1_re[p_no].get_text("text").splitlines() if p_no < pages1 else []
+        t2 = doc2_re[p_no].get_text("text").splitlines() if p_no < pages2 else []
+        p_diff = list(difflib.unified_diff(t1, t2, lineterm=""))
+        p_adds = sum(1 for line in p_diff if line.startswith("+") and not line.startswith("+++"))
+        p_dels = sum(1 for line in p_diff if line.startswith("-") and not line.startswith("---"))
+        page_diffs.append({
+            "page": p_no + 1,
+            "has_changes": len(p_diff) > 0,
+            "additions": p_adds,
+            "deletions": p_dels,
+            "diff_lines": p_diff[:30]
+        })
+    doc1_re.close()
+    doc2_re.close()
+
     return {
         "identical": len(diff) == 0,
         "page_count_file1": pages1,
         "page_count_file2": pages2,
         "additions": additions,
         "deletions": deletions,
-        "report_file": output_path.name
+        "report_file": output_path.name,
+        "page_diffs": page_diffs,
+        "diff_lines": diff[:100]
     }
+
 
 
 def get_pdf_info(file_path: Path) -> Dict[str, Any]:

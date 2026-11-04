@@ -1,0 +1,18 @@
+{
+  "name": "Foldora PDF",
+  "short_name": "Foldora",
+  "description": "Every document. One smoother workflow. Modern, fast, and privacy-first online PDF toolkit.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#12151c",
+  "theme_color": "#12151c",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
