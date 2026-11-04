@@ -760,7 +760,17 @@ async def execute_job(job_id: str) -> None:
                     f_values = json.loads(f_values)
                 except Exception:
                     f_values = {}
-            editor.fill_form_fields(input_paths[0], out_p, f_values)
+            res_path, stats = editor.fill_form_fields(input_paths[0], out_p, f_values, return_stats=True)
+            meta_update = {
+                "total_fields": stats["total_fields"],
+                "filled_fields": stats["filled_fields"],
+                "is_flat": stats["total_fields"] == 0,
+                "message": (
+                    f"Successfully populated {stats['filled_fields']} interactive form field(s)."
+                    if stats["total_fields"] > 0
+                    else "No embedded form fields detected in this document. It is a flat/static PDF. Use the Visual Canvas Editor or Fill & Sign to type directly onto it."
+                )
+            }
             output_files.append(_make_output_file(job_id, job.download_token, out_p, "filled_form.pdf", "application/pdf"))
 
 

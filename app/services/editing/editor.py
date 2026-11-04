@@ -321,12 +321,16 @@ def add_stamp(
 def fill_form_fields(
     file_path: Path,
     output_path: Path,
-    field_values: Dict[str, Any]
-) -> Path:
+    field_values: Dict[str, Any],
+    return_stats: bool = False
+):
     """Fill PDF AcroForm fields and checkboxes."""
     doc = pymupdf.open(str(file_path))
+    total_fields = 0
+    filled_fields = 0
     for page in doc:
         for widget in page.widgets():
+            total_fields += 1
             if widget.field_name in field_values:
                 val = field_values[widget.field_name]
                 if widget.field_type == pymupdf.PDF_WIDGET_TYPE_CHECKBOX:
@@ -334,9 +338,12 @@ def fill_form_fields(
                 else:
                     widget.field_value = str(val)
                 widget.update()
+                filled_fields += 1
 
     doc.save(str(output_path), deflate=True)
     doc.close()
+    if return_stats:
+        return output_path, {"total_fields": total_fields, "filled_fields": filled_fields}
     return output_path
 
 

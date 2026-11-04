@@ -129,6 +129,31 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({ job, files, onReset, o
         </div>
       )}
 
+      {/* Form Field Processing Notice */}
+      {job.tool_id === 'fill-form' && job.metadata?.is_flat && (
+        <div className="p-4 bg-[#fffbeb] border border-[#fef3c7] rounded-xl flex items-start gap-3 text-xs text-[#92400e]">
+          <AlertTriangle className="w-5 h-5 text-[#d97706] shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-bold block">Standard Flat PDF Detected (No AcroForm Widgets)</span>
+            <p className="text-[11px] text-[#b45309] leading-relaxed">
+              This document does not contain interactive PDF form fields. To type directly over blank lines, boxes, or forms, open the <strong>Visual Canvas Editor</strong> tab or use the <strong>Fill &amp; Sign</strong> utility.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {job.tool_id === 'fill-form' && (job.metadata?.total_fields || 0) > 0 && (
+        <div className="p-4 bg-[#ecfdf5] border border-[#a7f3d0] rounded-xl flex items-center gap-3 text-xs text-[#065f46]">
+          <CheckCircle2 className="w-5 h-5 text-[#059669] shrink-0" />
+          <div>
+            <span className="font-bold block">Form Fields Populated</span>
+            <p className="text-[11px] text-[#047857]">
+              Successfully updated {job.metadata.filled_fields} of {job.metadata.total_fields} interactive form field(s).
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Visual PDF Compare & Diff Inspector */}
       {job.tool_id === 'compare-pdfs' && (
         <VisualDiffInspector
