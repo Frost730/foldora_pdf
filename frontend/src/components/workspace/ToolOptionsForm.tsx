@@ -2000,8 +2000,8 @@ export const ToolOptionsForm: React.FC<ToolOptionsFormProps> = ({
     );
   }
 
-  // 35. Edit Tools (add-image, draw-freehand, add-shapes, add-comments, annotate-pdf, fill-form)
-  if (['add-image', 'draw-freehand', 'add-shapes', 'add-comments', 'annotate-pdf', 'fill-form'].includes(toolId)) {
+  // 35. Edit Tools (add-image, draw-freehand, add-shapes, add-comments, annotate-pdf)
+  if (['add-image', 'draw-freehand', 'add-shapes', 'add-comments', 'annotate-pdf'].includes(toolId)) {
     return (
       <div className="space-y-3">
         <label className="block text-xs font-bold text-[#12151c]">Editing Preferences</label>
@@ -2029,6 +2029,108 @@ export const ToolOptionsForm: React.FC<ToolOptionsFormProps> = ({
               <span className="text-xs font-mono text-[#64748b]">{options.color || '#2563eb'}</span>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 35b. Fill Form Fields
+  if (toolId === 'fill-form') {
+    const rawFields = typeof options.fields === 'object' && options.fields !== null ? options.fields : {};
+    const fieldPairs = Object.entries(rawFields);
+
+    const updateFieldKeyVal = (oldKey: string, newKey: string, newVal: any) => {
+      const next = { ...rawFields };
+      if (oldKey !== newKey) {
+        delete next[oldKey];
+      }
+      next[newKey] = newVal;
+      updateOption('fields', next);
+    };
+
+    const removeField = (key: string) => {
+      const next = { ...rawFields };
+      delete next[key];
+      updateOption('fields', next);
+    };
+
+    const addField = () => {
+      const next = { ...rawFields, [`field_${fieldPairs.length + 1}`]: '' };
+      updateOption('fields', next);
+    };
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <label className="block text-xs font-bold text-[#12151c] mb-1">AcroForm Field Values</label>
+          <p className="text-[11px] text-[#64748b] mb-3">
+            Populate standard interactive PDF form fields (text boxes, checkboxes) by matching their internal field names.
+          </p>
+
+          <div className="space-y-2">
+            {fieldPairs.length === 0 ? (
+              <div className="p-3 bg-[#f8fafc] border border-dashed border-[#cbd5e1] rounded-xl text-center">
+                <p className="text-xs text-[#64748b] mb-2">No custom field values added yet.</p>
+                <button
+                  type="button"
+                  onClick={addField}
+                  className="px-3 py-1 bg-white border border-[#e2e8f0] text-[#12151c] text-xs font-semibold rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+                >
+                  + Add First Form Field
+                </button>
+              </div>
+            ) : (
+              fieldPairs.map(([k, v], idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Field Name (e.g. first_name)"
+                    value={k}
+                    onChange={(e) => updateFieldKeyVal(k, e.target.value, v)}
+                    className="flex-1 px-3 py-1.5 text-xs bg-white border border-[#e3e3dc] rounded-xl focus:outline-none focus:border-[#12151c]"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Value (e.g. Jane Doe)"
+                    value={typeof v === 'boolean' ? (v ? 'true' : 'false') : String(v)}
+                    onChange={(e) => {
+                      const val = e.target.value.toLowerCase() === 'true' ? true : e.target.value.toLowerCase() === 'false' ? false : e.target.value;
+                      updateFieldKeyVal(k, k, val);
+                    }}
+                    className="flex-1 px-3 py-1.5 text-xs bg-white border border-[#e3e3dc] rounded-xl focus:outline-none focus:border-[#12151c]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeField(k)}
+                    className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                    title="Remove field"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {fieldPairs.length > 0 && (
+            <button
+              type="button"
+              onClick={addField}
+              className="mt-2.5 text-xs text-[#2563eb] hover:underline font-semibold flex items-center gap-1"
+            >
+              + Add Another Field
+            </button>
+          )}
+        </div>
+
+        <div className="p-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-[11px] text-[#64748b] space-y-1">
+          <span className="font-semibold text-[#12151c] flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#10b981]" />
+            Visual Canvas Support Available
+          </span>
+          <p>
+            You can also switch to the <strong>Visual Canvas Editor</strong> tab above to click, inspect, and fill form fields directly on top of the document.
+          </p>
         </div>
       </div>
     );
