@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, PenTool, Type, Upload, Trash2, Check } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X, PenTool, Type, Upload, Trash2, Check, Sparkles, SlidersHorizontal, RefreshCw } from 'lucide-react';
 
 interface SignatureModalProps {
   isOpen: boolean;
@@ -23,6 +23,8 @@ const SIGNATURE_STYLES = [
   { id: 'style4', font: 'italic 34px "Comic Sans MS", "Caveat", cursive', name: 'Casual Hand' },
 ];
 
+type InkColorMode = 'original' | 'crisp_dark' | 'executive_blue' | 'black';
+
 export const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose, onAdopt }) => {
   const [tab, setTab] = useState<'draw' | 'type' | 'upload'>('draw');
   const [selectedColor, setSelectedColor] = useState<string>('#111827');
@@ -40,6 +42,10 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose,
   // Upload Tab State
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [removeBg, setRemoveBg] = useState<boolean>(true);
+  const [sensitivity, setSensitivity] = useState<number>(68); // 20% to 95%
+  const [inkColorMode, setInkColorMode] = useState<InkColorMode>('crisp_dark');
+  const [processedPreview, setProcessedPreview] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Reset or initialize drawing canvas when opened or tab changed
   useEffect(() => {
@@ -54,6 +60,117 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose,
       }
     }
   }, [isOpen, tab]);
+
+  // Adaptive background removal engine with smooth edge feathering
+  const processImage = useCallback(
+    (src: string, isRemoveBg: boolean, sens: number, colorMode: InkColorMode) => {
+      if (!isRemoveBg) {
+        setProcessedPreview(src);
+        return;
+      }
+
+      setIsProcessing(true);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setProcessedPreview(src);
+          setIsProcessing(false);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Sample perimeter pixels to detect paper background luminance
+        let bgLuminanceSum = 0;
+        let bgCount = 0;
+        const stepX = Math.max(1, Math.floor(w / 35));
+        const stepY = Math.max(1, Math.floor(h / 35));
+
+        for (let x = 0; x < w; x += stepX) {
+          const topIdx = (0 * w + x) * 4;
+          bgLuminanceSum += 0.299 * data[topIdx] + 0.587 * data[topIdx + 1] + 0.114 * data[topIdx + 2];
+          const botIdx = ((h - 1) * w + x) * 4;
+          bgLuminanceSum += 0.299 * data[botIdx] + 0.587 * data[botIdx + 1] + 0.114 * data[botIdx + 2];
+          bgCount += 2;
+        }
+        for (let y = 0; y < h; y += stepY) {
+          const leftIdx = (y * w + 0) * 4;
+          bgLuminanceSum += 0.299 * data[leftIdx] + 0.587 * data[leftIdx + 1] + 0.114 * data[leftIdx + 2];
+          const rightIdx = (y * w + (w - 1)) * 4;
+          bgLuminanceSum += 0.299 * data[rightIdx] + 0.587 * data[rightIdx + 1] + 0.114 * data[rightIdx + 2];
+          bgCount += 2;
+        }
+
+        const avgPaperLum = bgCount > 0 ? bgLuminanceSum / bgCount : 220;
+        const normalizedSensitivity = sens / 100;
+        // Dynamic threshold calculated from paper baseline and user sensitivity
+        const threshold = Math.min(253, Math.max(70, avgPaperLum * 0.45 + 255 * (normalizedSensitivity * 0.55)));
+        const feather = 35;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+          if (lum >= threshold) {
+            // Paper pixel: completely transparent
+            data[i + 3] = 0;
+          } else {
+            let alpha = 255;
+            if (lum > threshold - feather) {
+              // Smooth anti-aliased edge transition
+              alpha = Math.round(255 * ((threshold - lum) / feather));
+            }
+            data[i + 3] = Math.max(0, Math.min(255, alpha));
+
+            // Optional ink enhancement
+            if (colorMode === 'crisp_dark') {
+              data[i] = Math.round(r * 0.5);
+              data[i + 1] = Math.round(g * 0.5);
+              data[i + 2] = Math.round(b * 0.5);
+            } else if (colorMode === 'black') {
+              data[i] = 17;
+              data[i + 1] = 24;
+              data[i + 2] = 39;
+            } else if (colorMode === 'executive_blue') {
+              data[i] = 29;
+              data[i + 1] = 78;
+              data[i + 2] = 216;
+            }
+          }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+        setProcessedPreview(canvas.toDataURL('image/png'));
+        setIsProcessing(false);
+      };
+      img.onerror = () => {
+        setProcessedPreview(src);
+        setIsProcessing(false);
+      };
+      img.src = src;
+    },
+    []
+  );
+
+  // Automatically update live preview whenever uploaded image or options change
+  useEffect(() => {
+    if (uploadedImage) {
+      processImage(uploadedImage, removeBg, sensitivity, inkColorMode);
+    } else {
+      setProcessedPreview(null);
+    }
+  }, [uploadedImage, removeBg, sensitivity, inkColorMode, processImage]);
 
   if (!isOpen) return null;
 
@@ -119,6 +236,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose,
       setUploadedImage(reader.result as string);
     };
     reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   // -------------------------------------------------------------
@@ -158,55 +276,24 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose,
       }
     } else if (tab === 'upload') {
       if (!uploadedImage) return;
-
-      if (!removeBg) {
-        onAdopt(uploadedImage);
-        onClose();
-        return;
-      }
-
-      // Process uploaded image to remove white/near-white background
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const offscreen = document.createElement('canvas');
-        offscreen.width = img.width;
-        offscreen.height = img.height;
-        const ctx = offscreen.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          const imgData = ctx.getImageData(0, 0, img.width, img.height);
-          const data = imgData.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            // If near white, make alpha transparent
-            if (r > 215 && g > 215 && b > 215) {
-              data[i + 3] = 0;
-            }
-          }
-          ctx.putImageData(imgData, 0, 0);
-          onAdopt(offscreen.toDataURL('image/png'));
-          onClose();
-        }
-      };
-      img.src = uploadedImage;
+      const finalSig = processedPreview || uploadedImage;
+      onAdopt(finalSig);
+      onClose();
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-      <div className="bg-[#181d27] border border-[#2b303c] rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl text-white space-y-4">
+      <div className="bg-[#181d27] border border-[#2b303c] rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl text-white space-y-4 max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-2 border-b border-[#2b303c]">
+        <div className="flex items-center justify-between px-6 pt-5 pb-2 border-b border-[#2b303c] shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#c9f227] text-[#12151c] flex items-center justify-center font-bold">
               <PenTool className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-sm font-bold text-white tracking-tight">Signature Studio</h3>
-              <p className="text-[11px] text-[#94a3b8]">Create, customize, and place your electronic signature</p>
+              <p className="text-[11px] text-[#94a3b8]">Create, customize, and place your signature directly onto the PDF</p>
             </div>
           </div>
           <button
@@ -218,7 +305,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose,
         </div>
 
         {/* Tab Selection */}
-        <div className="px-6">
+        <div className="px-6 shrink-0">
           <div className="flex items-center gap-1.5 p-1 bg-[#12151c] border border-[#2b303c] rounded-xl text-xs font-semibold">
             <button
               type="button"
@@ -248,13 +335,13 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose,
               }`}
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>Upload</span>
+              <span>Upload Photo / Scan</span>
             </button>
           </div>
         </div>
 
         {/* Tab Content */}
-        <div className="px-6 space-y-4">
+        <div className="px-6 space-y-4 overflow-y-auto flex-1 pb-2">
           {/* TAB 1: DRAW */}
           {tab === 'draw' && (
             <div className="space-y-3">
@@ -391,31 +478,122 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose,
             </div>
           )}
 
-          {/* TAB 3: UPLOAD */}
+          {/* TAB 3: UPLOAD WITH LIVE ADAPTIVE TRANSPARENCY PREVIEW */}
           {tab === 'upload' && (
-            <div className="space-y-3">
-              <label className="border-2 border-dashed border-[#333c4d] hover:border-[#c9f227] rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-[#0f1218]">
-                <Upload className="w-8 h-8 text-[#64748b] mb-2" />
-                <span className="text-xs font-semibold text-white">Click to upload signature image</span>
-                <span className="text-[11px] text-[#64748b] mt-0.5">Supports PNG, JPG, JPEG</span>
-                <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-              </label>
+            <div className="space-y-3.5">
+              {!uploadedImage ? (
+                <label className="border-2 border-dashed border-[#333c4d] hover:border-[#c9f227] rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-[#0f1218]">
+                  <Upload className="w-8 h-8 text-[#64748b] mb-2" />
+                  <span className="text-xs font-semibold text-white">Click or drop signature photo / scan</span>
+                  <span className="text-[11px] text-[#64748b] mt-0.5">Supports PNG, JPG, JPEG, WEBP taken with phone or scanner</span>
+                  <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                </label>
+              ) : (
+                <div className="space-y-3">
+                  {/* Live Checkerboard Transparency Preview */}
+                  <div className="relative border border-[#2b303c] rounded-xl overflow-hidden shadow-inner bg-[#12151c]">
+                    <div
+                      className="w-full h-36 flex items-center justify-center p-4"
+                      style={{
+                        backgroundImage: `repeating-conic-gradient(#252c3b 0% 25%, #181d27 0% 50%)`,
+                        backgroundPosition: '0 0',
+                        backgroundSize: '16px 16px',
+                      }}
+                    >
+                      {processedPreview && (
+                        <img
+                          src={processedPreview}
+                          alt="Processed Signature"
+                          className="max-h-28 max-w-full object-contain filter drop-shadow-sm"
+                        />
+                      )}
+                    </div>
 
-              {uploadedImage && (
-                <div className="p-3 bg-[#12151c] border border-[#2b303c] rounded-xl flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <img src={uploadedImage} alt="Uploaded" className="h-10 max-w-[120px] object-contain rounded" />
-                    <span className="text-xs text-[#94a3b8]">Signature loaded</span>
+                    <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-[#12151c]/90 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-[#2b303c] text-[10px]">
+                      {removeBg ? (
+                        <>
+                          <Sparkles className="w-3 h-3 text-[#c9f227]" />
+                          <span className="text-[#c9f227] font-semibold">Transparent Background Active</span>
+                        </>
+                      ) : (
+                        <span className="text-[#94a3b8]">Original Background</span>
+                      )}
+                    </div>
+
+                    <label className="absolute top-2 right-2 flex items-center gap-1 bg-[#12151c]/90 hover:bg-[#1e2433] px-2 py-1 rounded-lg border border-[#2b303c] text-[10px] text-[#94a3b8] hover:text-white cursor-pointer transition-colors">
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Change Image</span>
+                      <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                    </label>
                   </div>
-                  <label className="flex items-center gap-2 text-xs text-[#94a3b8] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={removeBg}
-                      onChange={(e) => setRemoveBg(e.target.checked)}
-                      className="rounded accent-[#c9f227]"
-                    />
-                    <span>Make background transparent</span>
-                  </label>
+
+                  {/* Transparency & Sensitivity Controls */}
+                  <div className="p-3.5 bg-[#12151c] border border-[#2b303c] rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-white cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={removeBg}
+                          onChange={(e) => setRemoveBg(e.target.checked)}
+                          className="w-4 h-4 rounded accent-[#c9f227] cursor-pointer"
+                        />
+                        <span>Make background transparent</span>
+                      </label>
+                      <span className="text-[10px] text-[#64748b]">Smooth anti-aliased strokes</span>
+                    </div>
+
+                    {removeBg && (
+                      <>
+                        <div className="space-y-1.5 pt-1 border-t border-[#232936]">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[11px] text-[#94a3b8] flex items-center gap-1">
+                              <SlidersHorizontal className="w-3 h-3" />
+                              Shadow / Paper Sensitivity:
+                            </span>
+                            <span className="text-[11px] font-mono text-[#c9f227] font-bold">{sensitivity}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="20"
+                            max="95"
+                            value={sensitivity}
+                            onChange={(e) => setSensitivity(Number(e.target.value))}
+                            className="w-full accent-[#c9f227] h-1.5 bg-[#232936] rounded-lg cursor-pointer"
+                          />
+                          <div className="flex items-center justify-between text-[10px] text-[#64748b]">
+                            <span>Preserve light ink</span>
+                            <span>Remove darker shadows</span>
+                          </div>
+                        </div>
+
+                        {/* Ink Enhancement Mode */}
+                        <div className="space-y-1 pt-1 border-t border-[#232936]">
+                          <span className="text-[11px] text-[#94a3b8] block">Ink Tone:</span>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {[
+                              { id: 'original', label: 'Original' },
+                              { id: 'crisp_dark', label: 'Crisp Dark' },
+                              { id: 'executive_blue', label: 'Exec Blue' },
+                              { id: 'black', label: 'Pure Black' },
+                            ].map((mode) => (
+                              <button
+                                key={mode.id}
+                                type="button"
+                                onClick={() => setInkColorMode(mode.id as InkColorMode)}
+                                className={`py-1.5 px-2 text-[10px] font-semibold rounded-lg border transition-all cursor-pointer truncate ${
+                                  inkColorMode === mode.id
+                                    ? 'bg-[#c9f227]/20 border-[#c9f227] text-[#c9f227]'
+                                    : 'bg-[#181d27] border-[#2b303c] text-[#94a3b8] hover:text-white'
+                                }`}
+                              >
+                                {mode.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -423,7 +601,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose,
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-[#2b303c] bg-[#12151c] flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-[#2b303c] bg-[#12151c] flex items-center justify-between shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -435,9 +613,9 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({ isOpen, onClose,
           <button
             type="button"
             onClick={handleAdopt}
-            disabled={tab === 'draw' && !hasDrawn}
+            disabled={(tab === 'draw' && !hasDrawn) || (tab === 'upload' && !uploadedImage) || isProcessing}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-              tab === 'draw' && !hasDrawn
+              (tab === 'draw' && !hasDrawn) || (tab === 'upload' && !uploadedImage) || isProcessing
                 ? 'bg-[#2b303c] text-[#64748b] cursor-not-allowed'
                 : 'bg-[#c9f227] text-[#12151c] hover:bg-[#b5dc1f] shadow-md'
             }`}

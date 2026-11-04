@@ -709,11 +709,11 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
           <button
             type="button"
             onClick={() => setShowSignatureModal(true)}
-            title="Sign document (Draw, Type, or Upload Signature)"
+            title="Sign document now (Draw, Type, or Upload your signature to stamp on the page)"
             className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-[#232936] text-[#c9f227] hover:bg-[#2d3446]"
           >
             <FileSignature className="w-3.5 h-3.5" />
-            <span>Sign</span>
+            <span>Sign (Stamp)</span>
           </button>
 
           <button
@@ -854,13 +854,13 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
             <button
               type="button"
               onClick={() => setActiveTool('form-signature')}
-              title="Add Signature Area"
+              title="Add 'Sign Here' Box (Form field for recipient to sign in PDF reader)"
               className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 text-xs ${
                 activeTool === 'form-signature' ? 'bg-[#c9f227] text-[#12151c] font-bold' : 'text-[#94a3b8] hover:text-white'
               }`}
             >
               <FileSignature className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline text-[11px]">Sign Area</span>
+              <span className="hidden xl:inline text-[11px]">Sign Box</span>
             </button>
           </div>
         </div>
@@ -1609,7 +1609,7 @@ export const VisualPdfEditor: React.FC<VisualPdfEditorProps> = ({
                           <FileSignature className="w-3 h-3" />
                           <span>{item.name || 'signature'}</span>
                         </span>
-                        <span className="text-[9px] text-[#3b82f6]/70">Sign Area</span>
+                        <span className="text-[9px] text-[#3b82f6]/70">Sign Box (For Signer)</span>
                       </div>
                       <div className="border-b border-dashed border-[#94a3b8] w-full my-auto" />
                       <span className="text-[8px] text-[#64748b] text-center font-mono">Sign Here &#x270d;</span>

@@ -601,8 +601,8 @@ def apply_visual_edits(
                         img_bytes = base64.b64decode(img_b64)
                         x = float(item.get("x", 72.0))
                         y = float(item.get("y", 72.0))
-                        w = max(1.0, min(3000.0, float(item.get("width", 150.0))))
-                        h = max(1.0, min(3000.0, float(item.get("height", 100.0))))
+                        w = max(1.0, min(3000.0, float(item.get("width") or item.get("w") or 150.0)))
+                        h = max(1.0, min(3000.0, float(item.get("height") or item.get("h") or 100.0)))
                         rect = pymupdf.Rect(x, y, x + w, y + h)
                         page.insert_image(rect, stream=img_bytes, keep_proportion=True)
                         applied_count += 1
